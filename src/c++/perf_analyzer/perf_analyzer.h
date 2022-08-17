@@ -28,8 +28,8 @@
 #include <getopt.h>
 #include <signal.h>
 #include <algorithm>
-#include <exception>
 
+#include "command_line_parser.h"
 #include "inference_profiler.h"
 #include "concurrency_manager.h"
 #include "custom_load_manager.h"
@@ -277,24 +277,4 @@ class PerfAnalyzer {
   void profile();
   void write_report();
   void finalize();
-};
-
-// Perf Exception error class
-//
-class PerfException : public std::exception {
- public:
-  PerfException(uint32_t error): error_(error) {}
-
-  virtual const char* what() const throw()
-  {
-    std::string msg = "Perf Error " + std::to_string(error_) + " thrown";
-    return msg.c_str();
-  }
-
-  inline int get_error() const {
-    return error_;
-  }
-
- private:
-   uint32_t error_;
 };

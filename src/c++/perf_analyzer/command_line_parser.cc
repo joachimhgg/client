@@ -1,4 +1,4 @@
-// Copyright 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions
@@ -23,27 +23,7 @@
 // OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
 
-#include "perf_analyzer.h"
-#include "perf_analyzer_exception.h"
+#include "command_line_parser.h"
 
-namespace pa = triton::perfanalyzer;
-
-int
-main(int argc, char* argv[])
-{
-  try {
-    // triton::perfanalyzer::CLParser clp;
-    // PAParamsPtr params = clp.parse(argc, argv);
-    pa::PAParamsPtr params(new pa::PerfAnalyzerParameters{});
-    std::cout << "Verbose set to " << params->verbose << std::endl;
-
-    // PerfAnalyzer analyzer(params);
-    PerfAnalyzer analyzer(argc, argv);
-    analyzer.run();
-  } catch (pa::PerfAnalyzerException& e) {
-    return e.get_error();
-  }
-
-  return 0;
-}
