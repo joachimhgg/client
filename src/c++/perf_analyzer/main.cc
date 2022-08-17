@@ -29,5 +29,7 @@
 int
 main(int argc, char* argv[])
 {
-  return PerfAnalyzer::Run(argc, argv);
+  PerfAnalyzer analyzer(argc, argv);
+
+  return analyzer.run();
 }

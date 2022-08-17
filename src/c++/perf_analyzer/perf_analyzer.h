@@ -27,6 +27,17 @@
 
 class PerfAnalyzer {
  public:
+  PerfAnalyzer(int argc, char* argv[]);
+  virtual ~PerfAnalyzer() {};
+
   // Main runner function for Perf Analyzer.
-  static int Run(int argc, char* argv[]);
+  int run();
+
+ private:
+  int argc_;
+  char** argv_;
+
+  // Parse the options out of the command line argument
+  //
+
 };

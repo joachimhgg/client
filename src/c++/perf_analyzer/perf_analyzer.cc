@@ -802,8 +802,10 @@ Usage(char** argv, const std::string& msg = std::string())
 
 }  // namespace
 
+PerfAnalyzer::PerfAnalyzer(int argc, char** argv) : argc_(argc), argv_(argv) {}
+
 int
-PerfAnalyzer::Run(int argc, char** argv)
+PerfAnalyzer::run()
 {
   cb::BackendKind kind(cb::BackendKind::TRITON);
   bool verbose = false;
@@ -935,7 +937,7 @@ PerfAnalyzer::Run(int argc, char** argv)
   // Parse commandline...
   int opt;
   while ((opt = getopt_long(
-              argc, argv, "vdazc:u:m:x:b:t:p:i:H:l:r:s:f:", long_options,
+              argc_, argv_, "vdazc:u:m:x:b:t:p:i:H:l:r:s:f:", long_options,
               NULL)) != -1) {
     switch (opt) {
       case 0:
@@ -959,7 +961,7 @@ PerfAnalyzer::Run(int argc, char** argv)
         auto colon_pos = arg.rfind(":");
         if (colon_pos == std::string::npos) {
           Usage(
-              argv,
+              argv_,
               "failed to parse input shape. There must be a colon after input "
               "name.");
         }
@@ -979,13 +981,13 @@ PerfAnalyzer::Run(int argc, char** argv)
               pos = comma_pos + 1;
             }
             if (dim <= 0) {
-              Usage(argv, "input shape must be > 0");
+              Usage(argv_, "input shape must be > 0");
             }
             shape.emplace_back(dim);
           }
         }
         catch (const std::invalid_argument& ia) {
-          Usage(argv, "failed to parse input shape: " + std::string(optarg));
+          Usage(argv_, "failed to parse input shape: " + std::string(optarg));
         }
         input_shapes[name] = shape;
         break;
@@ -1004,7 +1006,7 @@ PerfAnalyzer::Run(int argc, char** argv)
             size_t colon_pos = arg.find(":", pos);
             if (index > 2) {
               Usage(
-                  argv,
+                  argv_,
                   "option concurrency-range can have maximum of three "
                   "elements");
             }
@@ -1021,7 +1023,7 @@ PerfAnalyzer::Run(int argc, char** argv)
         }
         catch (const std::invalid_argument& ia) {
           Usage(
-              argv,
+              argv_,
               "failed to parse concurrency range: " + std::string(optarg));
         }
         break;
@@ -1048,7 +1050,7 @@ PerfAnalyzer::Run(int argc, char** argv)
         } else if (arg.compare("random") == 0) {
           break;
         } else {
-          Usage(argv, "unsupported input data provided " + std::string(optarg));
+          Usage(argv_, "unsupported input data provided " + std::string(optarg));
         }
         break;
       }
@@ -1078,7 +1080,7 @@ PerfAnalyzer::Run(int argc, char** argv)
             size_t colon_pos = arg.find(":", pos);
             if (index > 2) {
               Usage(
-                  argv,
+                  argv_,
                   "option request_rate_range can have maximum of three "
                   "elements");
             }
@@ -1095,7 +1097,7 @@ PerfAnalyzer::Run(int argc, char** argv)
         }
         catch (const std::invalid_argument& ia) {
           Usage(
-              argv,
+              argv_,
               "failed to parse request rate range: " + std::string(optarg));
         }
         break;
@@ -1116,7 +1118,7 @@ PerfAnalyzer::Run(int argc, char** argv)
           request_distribution = pa::Distribution::CONSTANT;
         } else {
           Usage(
-              argv, "unsupported request distribution provided " +
+              argv_, "unsupported request distribution provided " +
                         std::string(optarg));
         }
         break;
@@ -1134,7 +1136,7 @@ PerfAnalyzer::Run(int argc, char** argv)
           shared_memory_type = pa::SharedMemoryType::CUDA_SHARED_MEMORY;
 #else
           Usage(
-              argv,
+              argv_,
               "cuda shared memory is not supported when TRITON_ENABLE_GPU=0");
 #endif  // TRITON_ENABLE_GPU
         }
@@ -1155,7 +1157,7 @@ PerfAnalyzer::Run(int argc, char** argv)
         } else if (arg.compare("triton_c_api") == 0) {
           kind = cb::TRITON_C_API;
         } else {
-          Usage(argv, "unsupported --service-kind specified");
+          Usage(argv_, "unsupported --service-kind specified");
         }
         break;
       }
@@ -1172,7 +1174,7 @@ PerfAnalyzer::Run(int argc, char** argv)
         } else if (arg.compare("gzip") == 0) {
           compression_algorithm = cb::COMPRESS_GZIP;
         } else {
-          Usage(argv, "unsupported --grpc-compression-algorithm specified");
+          Usage(argv_, "unsupported --grpc-compression-algorithm specified");
         }
         break;
       }
@@ -1183,7 +1185,7 @@ PerfAnalyzer::Run(int argc, char** argv)
         } else if (arg.compare("count_windows") == 0) {
           measurement_mode = pa::MeasurementMode::COUNT_WINDOWS;
         } else {
-          Usage(argv, "unsupported --measurement-mode specified");
+          Usage(argv_, "unsupported --measurement-mode specified");
         }
         break;
       }
@@ -1208,7 +1210,7 @@ PerfAnalyzer::Run(int argc, char** argv)
             size_t colon_pos = arg.find(":", pos);
             if (index > 1) {
               Usage(
-                  argv,
+                  argv_,
                   "option sequence-id-range can have maximum of two "
                   "elements");
             }
@@ -1229,7 +1231,7 @@ PerfAnalyzer::Run(int argc, char** argv)
         }
         catch (const std::invalid_argument& ia) {
           Usage(
-              argv,
+              argv_,
               "failed to parse concurrency range: " + std::string(optarg));
         }
         break;
@@ -1243,7 +1245,7 @@ PerfAnalyzer::Run(int argc, char** argv)
           ssl_options.ssl_grpc_root_certifications_file = optarg;
         } else {
           Usage(
-              argv,
+              argv_,
               "--ssl-grpc-root-certifications-file must be a valid file path");
         }
         break;
@@ -1252,7 +1254,7 @@ PerfAnalyzer::Run(int argc, char** argv)
         if (pa::IsFile(optarg)) {
           ssl_options.ssl_grpc_private_key_file = optarg;
         } else {
-          Usage(argv, "--ssl-grpc-private-key-file must be a valid file path");
+          Usage(argv_, "--ssl-grpc-private-key-file must be a valid file path");
         }
         break;
       }
@@ -1261,7 +1263,7 @@ PerfAnalyzer::Run(int argc, char** argv)
           ssl_options.ssl_grpc_certificate_chain_file = optarg;
         } else {
           Usage(
-              argv,
+              argv_,
               "--ssl-grpc-certificate-chain-file must be a valid file path");
         }
         break;
@@ -1270,7 +1272,7 @@ PerfAnalyzer::Run(int argc, char** argv)
         if (std::atol(optarg) == 0 || std::atol(optarg) == 1) {
           ssl_options.ssl_https_verify_peer = std::atol(optarg);
         } else {
-          Usage(argv, "--ssl-https-verify-peer must be 0 or 1");
+          Usage(argv_, "--ssl-https-verify-peer must be 0 or 1");
         }
         break;
       }
@@ -1279,7 +1281,7 @@ PerfAnalyzer::Run(int argc, char** argv)
             std::atol(optarg) == 2) {
           ssl_options.ssl_https_verify_host = std::atol(optarg);
         } else {
-          Usage(argv, "--ssl-https-verify-host must be 0, 1, or 2");
+          Usage(argv_, "--ssl-https-verify-host must be 0, 1, or 2");
         }
         break;
       }
@@ -1288,7 +1290,7 @@ PerfAnalyzer::Run(int argc, char** argv)
           ssl_options.ssl_https_ca_certificates_file = optarg;
         } else {
           Usage(
-              argv,
+              argv_,
               "--ssl-https-ca-certificates-file must be a valid file path");
         }
         break;
@@ -1298,7 +1300,7 @@ PerfAnalyzer::Run(int argc, char** argv)
           ssl_options.ssl_https_client_certificate_file = optarg;
         } else {
           Usage(
-              argv,
+              argv_,
               "--ssl-https-client-certificate-file must be a valid file path");
         }
         break;
@@ -1308,7 +1310,7 @@ PerfAnalyzer::Run(int argc, char** argv)
           ssl_options.ssl_https_client_certificate_type = optarg;
         } else {
           Usage(
-              argv,
+              argv_,
               "--ssl-https-client-certificate-type must be 'PEM' or 'DER'");
         }
         break;
@@ -1317,7 +1319,7 @@ PerfAnalyzer::Run(int argc, char** argv)
         if (pa::IsFile(optarg)) {
           ssl_options.ssl_https_private_key_file = optarg;
         } else {
-          Usage(argv, "--ssl-https-private-key-file must be a valid file path");
+          Usage(argv_, "--ssl-https-private-key-file must be a valid file path");
         }
         break;
       }
@@ -1325,7 +1327,7 @@ PerfAnalyzer::Run(int argc, char** argv)
         if (std::string(optarg) == "PEM" || std::string(optarg) == "DER") {
           ssl_options.ssl_https_private_key_type = optarg;
         } else {
-          Usage(argv, "--ssl-https-private-key-type must be 'PEM' or 'DER'");
+          Usage(argv_, "--ssl-https-private-key-type must be 'PEM' or 'DER'");
         }
         break;
       }
@@ -1418,45 +1420,45 @@ PerfAnalyzer::Run(int argc, char** argv)
         async = true;
         break;
       case '?':
-        Usage(argv);
+        Usage(argv_);
         break;
     }
   }
 
   std::shared_ptr<triton::perfanalyzer::MPIDriver> mpi_driver{
       std::make_shared<triton::perfanalyzer::MPIDriver>(enable_mpi)};
-  mpi_driver->MPIInit(&argc, &argv);
+  mpi_driver->MPIInit(&argc_, &argv_);
 
   if (model_name.empty()) {
-    Usage(argv, "-m flag must be specified");
+    Usage(argv_, "-m flag must be specified");
   }
   if (batch_size <= 0) {
-    Usage(argv, "batch size must be > 0");
+    Usage(argv_, "batch size must be > 0");
   }
   if (measurement_window_ms <= 0) {
-    Usage(argv, "measurement window must be > 0 in msec");
+    Usage(argv_, "measurement window must be > 0 in msec");
   }
   if (measurement_request_count <= 0) {
-    Usage(argv, "measurement request count must be > 0");
+    Usage(argv_, "measurement request count must be > 0");
   }
   if (concurrency_range[SEARCH_RANGE::kSTART] <= 0 ||
       concurrent_request_count < 0) {
-    Usage(argv, "The start of the search range must be > 0");
+    Usage(argv_, "The start of the search range must be > 0");
   }
   if (request_rate_range[SEARCH_RANGE::kSTART] <= 0) {
-    Usage(argv, "The start of the search range must be > 0");
+    Usage(argv_, "The start of the search range must be > 0");
   }
   if (protocol == cb::ProtocolType::UNKNOWN) {
-    Usage(argv, "protocol should be either HTTP or gRPC");
+    Usage(argv_, "protocol should be either HTTP or gRPC");
   }
   if (streaming && (protocol != cb::ProtocolType::GRPC)) {
-    Usage(argv, "streaming is only allowed with gRPC protocol");
+    Usage(argv_, "streaming is only allowed with gRPC protocol");
   }
   if (using_grpc_compression && (protocol != cb::ProtocolType::GRPC)) {
-    Usage(argv, "compression is only allowed with gRPC protocol");
+    Usage(argv_, "compression is only allowed with gRPC protocol");
   }
   if (max_threads == 0) {
-    Usage(argv, "maximum number of threads must be > 0");
+    Usage(argv_, "maximum number of threads must be > 0");
   }
   if (sequence_length == 0) {
     sequence_length = 20;
@@ -1471,17 +1473,17 @@ PerfAnalyzer::Run(int argc, char** argv)
               << std::endl;
   }
   if (percentile != -1 && (percentile > 99 || percentile < 1)) {
-    Usage(argv, "percentile must be -1 for not reporting or in range (0, 100)");
+    Usage(argv_, "percentile must be -1 for not reporting or in range (0, 100)");
   }
   if (zero_input && !user_data.empty()) {
-    Usage(argv, "zero input can't be set when data directory is provided");
+    Usage(argv_, "zero input can't be set when data directory is provided");
   }
   if (async && forced_sync) {
-    Usage(argv, "Both --async and --sync can not be specified simultaneously.");
+    Usage(argv_, "Both --async and --sync can not be specified simultaneously.");
   }
 
   if (using_concurrency_range && using_old_options) {
-    Usage(argv, "can not use deprecated options with --concurrency-range");
+    Usage(argv_, "can not use deprecated options with --concurrency-range");
   } else if (using_old_options) {
     if (dynamic_concurrency_mode) {
       concurrency_range[SEARCH_RANGE::kEND] = max_concurrency;
@@ -1490,12 +1492,12 @@ PerfAnalyzer::Run(int argc, char** argv)
   }
 
   if (using_request_rate_range && using_old_options) {
-    Usage(argv, "can not use concurrency options with --request-rate-range");
+    Usage(argv_, "can not use concurrency options with --request-rate-range");
   }
 
   if (using_request_rate_range && using_concurrency_range) {
     Usage(
-        argv,
+        argv_,
         "can not specify concurrency_range and request_rate_range "
         "simultaneously");
   }
@@ -1503,17 +1505,17 @@ PerfAnalyzer::Run(int argc, char** argv)
   if (using_request_rate_range && mpi_driver->IsMPIRun() &&
       (request_rate_range[SEARCH_RANGE::kEND] != 1.0 ||
        request_rate_range[SEARCH_RANGE::kSTEP] != 1.0)) {
-    Usage(argv, "cannot use request rate range with multi-model mode");
+    Usage(argv_, "cannot use request rate range with multi-model mode");
   }
 
   if (using_custom_intervals && using_old_options) {
-    Usage(argv, "can not use deprecated options with --request-intervals");
+    Usage(argv_, "can not use deprecated options with --request-intervals");
   }
 
   if ((using_custom_intervals) &&
       (using_request_rate_range || using_concurrency_range)) {
     Usage(
-        argv,
+        argv_,
         "can not use --concurrency-range or --request-rate-range "
         "along with --request-intervals");
   }
@@ -1521,7 +1523,7 @@ PerfAnalyzer::Run(int argc, char** argv)
   if (using_concurrency_range && mpi_driver->IsMPIRun() &&
       (concurrency_range[SEARCH_RANGE::kEND] != 1 ||
        concurrency_range[SEARCH_RANGE::kSTEP] != 1)) {
-    Usage(argv, "cannot use concurrency range with multi-model mode");
+    Usage(argv_, "cannot use concurrency range with multi-model mode");
   }
 
   if (((concurrency_range[SEARCH_RANGE::kEND] == pa::NO_LIMIT) ||
@@ -1529,7 +1531,7 @@ PerfAnalyzer::Run(int argc, char** argv)
         static_cast<double>(pa::NO_LIMIT))) &&
       (latency_threshold_ms == pa::NO_LIMIT)) {
     Usage(
-        argv,
+        argv_,
         "The end of the search range and the latency limit can not be both 0 "
         "(or 0.0) simultaneously");
   }
@@ -1539,13 +1541,13 @@ PerfAnalyzer::Run(int argc, char** argv)
         static_cast<double>(pa::NO_LIMIT))) &&
       (search_mode == pa::SearchMode::BINARY)) {
     Usage(
-        argv,
+        argv_,
         "The end of the range can not be 0 (or 0.0) for binary search mode.");
   }
 
   if ((search_mode == pa::SearchMode::BINARY) &&
       (latency_threshold_ms == pa::NO_LIMIT)) {
-    Usage(argv, "The latency threshold can not be 0 for binary search mode.");
+    Usage(argv_, "The latency threshold can not be 0 for binary search mode.");
   }
 
   if (((concurrency_range[SEARCH_RANGE::kEND] <
@@ -1554,7 +1556,7 @@ PerfAnalyzer::Run(int argc, char** argv)
         request_rate_range[SEARCH_RANGE::kSTART])) &&
       (search_mode == pa::SearchMode::BINARY)) {
     Usage(
-        argv,
+        argv_,
         "The end of the range can not be less than start of the range for "
         "binary search mode.");
   }
