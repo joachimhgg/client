@@ -29,7 +29,12 @@
 int
 main(int argc, char* argv[])
 {
-  PerfAnalyzer analyzer(argc, argv);
+  try {
+    PerfAnalyzer analyzer(argc, argv);
+    analyzer.run();
+  } catch (PerfException& e) {
+    return e.get_error();
+  }
 
-  return analyzer.run();
+  return 0;
 }

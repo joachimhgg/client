@@ -661,33 +661,20 @@ Usage(char** argv, const std::string& msg = std::string())
 
 PerfAnalyzer::PerfAnalyzer(int argc, char** argv) : argc_(argc), argv_(argv) {}
 
-int
+void
 PerfAnalyzer::run()
 {
   parse_command_line();
   intialize_options();
+  verify_options();
 
-  int error = verify_options();
-  if (error) {
-    return error;
-  }
-
-  error = create_analyzer_objects();
-  if (error) {
-    return error;
-  }
+  create_analyzer_objects();
   
   prerun_report();
- 
-  error = profile();
-  if (error) {
-    return error;
-  }
-  
+  profile();
   write_report();
+
   finalize();
- 
-  return 0;
 }
 
 void
@@ -1267,7 +1254,7 @@ PerfAnalyzer::intialize_options()
   }
 }
 
-int 
+void 
 PerfAnalyzer::verify_options() 
 {
   if (model_name.empty()) {
@@ -1407,17 +1394,17 @@ PerfAnalyzer::verify_options()
       std::cerr
           << "perf_analyzer supports only grpc protocol for TensorFlow Serving."
           << std::endl;
-      return pa::GENERIC_ERROR;
+      throw PerfException(pa::GENERIC_ERROR);
     } else if (streaming) {
       std::cerr
           << "perf_analyzer does not support streaming for TensorFlow Serving."
           << std::endl;
-      return pa::GENERIC_ERROR;
+      throw PerfException(pa::GENERIC_ERROR);
     } else if (async) {
       std::cerr
           << "perf_analyzer does not support async API for TensorFlow Serving."
           << std::endl;
-      return pa::GENERIC_ERROR;
+      throw PerfException(pa::GENERIC_ERROR);
     } else if (!using_batch_size) {
       batch_size = 0;
     }
@@ -1426,7 +1413,7 @@ PerfAnalyzer::verify_options()
       std::cerr << "--input-data should be provided with a json file with "
                    "input data for torchserve"
                 << std::endl;
-      return pa::GENERIC_ERROR;
+      throw PerfException(pa::GENERIC_ERROR);
     }
   }
 
@@ -1435,10 +1422,10 @@ PerfAnalyzer::verify_options()
               << std::endl;
     if (!target_concurrency) {
       std::cerr << "Only target concurrency is supported by C API" << std::endl;
-      return pa::GENERIC_ERROR;
+      throw PerfException(pa::GENERIC_ERROR);
     } else if (shared_memory_type != pa::NO_SHARED_MEMORY) {
       std::cerr << "Shared memory not yet supported by C API" << std::endl;
-      return pa::GENERIC_ERROR;
+      throw PerfException(pa::GENERIC_ERROR);
     } else if (
         triton_server_path.empty() || model_repository_path.empty() ||
         memory_type.empty()) {
@@ -1447,18 +1434,16 @@ PerfAnalyzer::verify_options()
              "directory:"
           << triton_server_path << " model repo:" << model_repository_path
           << " memory type:" << memory_type << std::endl;
-      return pa::GENERIC_ERROR;
+      throw PerfException(pa::GENERIC_ERROR);
     } else if (async) {
       std::cerr << "Async API not yet supported by C API" << std::endl;
-      return pa::GENERIC_ERROR;
+      throw PerfException(pa::GENERIC_ERROR);
     }
     protocol = cb::ProtocolType::UNKNOWN;
   }
-
-  return 0;
 }
 
-int 
+void 
 PerfAnalyzer::create_analyzer_objects()
 {
 // trap SIGINT to allow threads to exit gracefully
@@ -1507,14 +1492,14 @@ PerfAnalyzer::create_analyzer_objects()
         "failed to create model parser");
   } else {
     std::cerr << "unsupported client backend kind" << std::endl;
-    return pa::GENERIC_ERROR;
+    throw PerfException(pa::GENERIC_ERROR);
   }
 
   if ((parser->MaxBatchSize() == 0) && batch_size > 1) {
     std::cerr << "can not specify batch size > 1 as the model does not support "
                  "batching"
               << std::endl;
-    return pa::GENERIC_ERROR;
+    throw PerfException(pa::GENERIC_ERROR);
   }
 
   // Change the default value for the --async option for sequential models
@@ -1527,14 +1512,14 @@ PerfAnalyzer::create_analyzer_objects()
     if (batch_size > 1) {
       std::cerr << "can not specify batch size > 1 when using a sequence model"
                 << std::endl;
-      return pa::GENERIC_ERROR;
+      throw PerfException(pa::GENERIC_ERROR);
     }
   }
 
   if (streaming) {
     if (forced_sync) {
       std::cerr << "can not use streaming with synchronous API" << std::endl;
-      return pa::GENERIC_ERROR;
+      throw PerfException(pa::GENERIC_ERROR);
     }
     async = true;
   }
@@ -1548,7 +1533,7 @@ PerfAnalyzer::create_analyzer_objects()
         std::cerr << "The 'end' concurrency can not be 0 for sequence "
                      "models when using asynchronous API."
                   << std::endl;
-        return pa::GENERIC_ERROR;
+        throw PerfException(pa::GENERIC_ERROR);
       }
     }
     max_concurrency = std::max(
@@ -1581,7 +1566,7 @@ PerfAnalyzer::create_analyzer_objects()
       std::cerr << "sequence id range specified is smallar than the "
                 << "maximum possible concurrency, sequence id collision may "
                 << "occur." << std::endl;
-      return pa::GENERIC_ERROR;
+      throw PerfException(pa::GENERIC_ERROR);
     }
     FAIL_IF_ERR(
         pa::ConcurrencyManager::Create(
@@ -1597,7 +1582,7 @@ PerfAnalyzer::create_analyzer_objects()
           << "sequence id range specified is smallar than the "
           << "maximum possible number of sequences, sequence id collision "
           << "may occur." << std::endl;
-      return pa::GENERIC_ERROR;
+      throw PerfException(pa::GENERIC_ERROR);
     }
     FAIL_IF_ERR(
         pa::RequestRateManager::Create(
@@ -1614,7 +1599,7 @@ PerfAnalyzer::create_analyzer_objects()
           << "sequence id range specified is smallar than the "
           << "maximum possible number of sequences, sequence id collision "
           << "may occur." << std::endl;
-      return pa::GENERIC_ERROR;
+      throw PerfException(pa::GENERIC_ERROR);
     }
     FAIL_IF_ERR(
         pa::CustomLoadManager::Create(
@@ -1633,8 +1618,6 @@ PerfAnalyzer::create_analyzer_objects()
           std::move(backend), std::move(manager), &profiler,
           measurement_request_count, measurement_mode, mpi_driver),
       "failed to create profiler");
-
-  return 0;
 }
 
 void
@@ -1712,7 +1695,7 @@ PerfAnalyzer::prerun_report()
   std::cout << std::endl;
 }
 
-int
+void
 PerfAnalyzer::profile()
 {
   mpi_driver->MPIBarrierWorld();
@@ -1737,11 +1720,9 @@ PerfAnalyzer::profile()
     // In the case of early_exit, the thread does not return and continues to
     // report the summary
     if (!pa::early_exit) {
-      return pa::GENERIC_ERROR;
+      throw PerfException(pa::GENERIC_ERROR);
     }
   }
-
-  return 0;
 }
 
 void

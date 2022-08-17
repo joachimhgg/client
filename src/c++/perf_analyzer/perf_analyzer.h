@@ -28,6 +28,7 @@
 #include <getopt.h>
 #include <signal.h>
 #include <algorithm>
+#include <exception>
 
 #include "inference_profiler.h"
 #include "concurrency_manager.h"
@@ -173,7 +174,7 @@ class PerfAnalyzer {
   virtual ~PerfAnalyzer() {};
 
   // Main runner function for Perf Analyzer.
-  int run();
+  void run();
 
  private:
   int argc_;
@@ -270,10 +271,30 @@ class PerfAnalyzer {
   //
   void parse_command_line();
   void intialize_options();
-  int verify_options();
-  int create_analyzer_objects();
+  void verify_options();
+  void create_analyzer_objects();
   void prerun_report();
-  int profile();
+  void profile();
   void write_report();
   void finalize();
+};
+
+// Perf Exception error class
+//
+class PerfException : public std::exception {
+ public:
+  PerfException(uint32_t error): error_(error) {}
+
+  virtual const char* what() const throw()
+  {
+    std::string msg = "Perf Error " + std::to_string(error_) + " thrown";
+    return msg.c_str();
+  }
+
+  inline int get_error() const {
+    return error_;
+  }
+
+ private:
+   uint32_t error_;
 };
