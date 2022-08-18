@@ -27,10 +27,9 @@
 
 #include <cstdint>
 
+// namespace pa = triton::perfanalyzer;
 
 namespace triton { namespace perfanalyzer {
-
-namespace pa = triton::perfanalyzer;
 
 constexpr static const uint32_t SUCCESS = 0;
 
@@ -38,5 +37,8 @@ constexpr static const uint32_t STABILITY_ERROR = 2;
 constexpr static const uint32_t OPTION_ERROR = 3;
 
 constexpr static const uint32_t GENERIC_ERROR = 99;
+
+/// Different measurement modes possible.
+enum MeasurementMode { TIME_WINDOWS = 0, COUNT_WINDOWS = 1 };
 
 }}  // namespace triton::perfanalyzer

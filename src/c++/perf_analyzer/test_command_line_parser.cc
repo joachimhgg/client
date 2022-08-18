@@ -26,12 +26,13 @@
 //
 #include <array>
 
-#include "doctest.h"
 #include "command_line_parser.h"
+#include "doctest.h"
 
 namespace triton { namespace perfanalyzer {
 
-TEST_CASE("Testing PerfAnalyzerParameters") {
+TEST_CASE("Testing PerfAnalyzerParameters")
+{
   PAParamsPtr params(new PerfAnalyzerParameters{});
 
   CHECK(params->verbose == false);
@@ -39,18 +40,23 @@ TEST_CASE("Testing PerfAnalyzerParameters") {
   CHECK(params->extra_verbose == false);
 }
 
-TEST_CASE("Testing Command Line Parser") {
-   CLParser parser;
+TEST_CASE("Testing Command Line Parser")
+{
+  CLParser parser;
 
-  SUBCASE("with no parameters") {
-    char* argv[1] = {"appname"};
-    int argc = 1;
+  SUBCASE("with min parameters")
+  {
+    char* argv[3] = {"test_perf_analyzer", "-m", "my_model"};
+    int argc = 3;
     PAParamsPtr p = parser.parse(argc, argv);
 
     CHECK(p->verbose == false);
     CHECK(p->streaming == false);
     CHECK(p->extra_verbose == false);
+    CHECK_MESSAGE(
+        !p->model_name.compare("my_model"),
+        "model_name expecting 'my_model', found '", p->model_name, "'");
   }
 }
 
-}}
+}}  // namespace triton::perfanalyzer

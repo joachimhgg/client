@@ -55,7 +55,7 @@ SignalHandler(int signum)
 
 namespace {
 
-enum SEARCH_RANGE { kSTART = 0, kEND = 1, kSTEP = 2 };
+enum SEARCH_RANGE { kSTART = 0, kEND = 1, kSTEP = 2 };  // remove
 
 // Remove
 // Used to format the usage message
@@ -678,7 +678,7 @@ PerfAnalyzer::run()
   // Move to constructor
   //
   create_analyzer_objects();
-  
+
   prerun_report();
   profile();
   write_report();
@@ -687,7 +687,8 @@ PerfAnalyzer::run()
 }
 
 void
-PerfAnalyzer::parse_command_line() {
+PerfAnalyzer::parse_command_line()
+{
   // {name, has_arg, *flag, val}
   static struct option long_options[] = {
       {"streaming", 0, 0, 0},
@@ -857,7 +858,8 @@ PerfAnalyzer::parse_command_line() {
         } else if (arg.compare("random") == 0) {
           break;
         } else {
-          Usage(argv_, "unsupported input data provided " + std::string(optarg));
+          Usage(
+              argv_, "unsupported input data provided " + std::string(optarg));
         }
         break;
       }
@@ -926,7 +928,7 @@ PerfAnalyzer::parse_command_line() {
         } else {
           Usage(
               argv_, "unsupported request distribution provided " +
-                        std::string(optarg));
+                         std::string(optarg));
         }
         break;
       }
@@ -1126,7 +1128,8 @@ PerfAnalyzer::parse_command_line() {
         if (pa::IsFile(optarg)) {
           ssl_options.ssl_https_private_key_file = optarg;
         } else {
-          Usage(argv_, "--ssl-https-private-key-file must be a valid file path");
+          Usage(
+              argv_, "--ssl-https-private-key-file must be a valid file path");
         }
         break;
       }
@@ -1263,8 +1266,8 @@ PerfAnalyzer::intialize_options()
   }
 }
 
-void 
-PerfAnalyzer::verify_options() 
+void
+PerfAnalyzer::verify_options()
 {
   if (model_name.empty()) {
     Usage(argv_, "-m flag must be specified");
@@ -1310,13 +1313,15 @@ PerfAnalyzer::verify_options()
               << std::endl;
   }
   if (percentile != -1 && (percentile > 99 || percentile < 1)) {
-    Usage(argv_, "percentile must be -1 for not reporting or in range (0, 100)");
+    Usage(
+        argv_, "percentile must be -1 for not reporting or in range (0, 100)");
   }
   if (zero_input && !user_data.empty()) {
     Usage(argv_, "zero input can't be set when data directory is provided");
   }
   if (async && forced_sync) {
-    Usage(argv_, "Both --async and --sync can not be specified simultaneously.");
+    Usage(
+        argv_, "Both --async and --sync can not be specified simultaneously.");
   }
 
   if (using_concurrency_range && using_old_options) {
@@ -1398,7 +1403,7 @@ PerfAnalyzer::verify_options()
         "binary search mode.");
   }
 
-    if (kind == cb::TENSORFLOW_SERVING) {
+  if (kind == cb::TENSORFLOW_SERVING) {
     if (protocol != cb::ProtocolType::GRPC) {
       std::cerr
           << "perf_analyzer supports only grpc protocol for TensorFlow Serving."
@@ -1452,10 +1457,10 @@ PerfAnalyzer::verify_options()
   }
 }
 
-void 
+void
 PerfAnalyzer::create_analyzer_objects()
 {
-// trap SIGINT to allow threads to exit gracefully
+  // trap SIGINT to allow threads to exit gracefully
   signal(SIGINT, pa::SignalHandler);
   std::shared_ptr<cb::ClientBackendFactory> factory;
   FAIL_IF_ERR(
@@ -1464,13 +1469,12 @@ PerfAnalyzer::create_analyzer_objects()
           compression_algorithm, http_headers, triton_server_path,
           model_repository_path, memory_type, extra_verbose, &factory),
       "failed to create client factory");
-  
+
   FAIL_IF_ERR(
       factory->CreateClientBackend(&backend),
       "failed to create triton client backend");
 
-  parser =
-      std::make_shared<pa::ModelParser>(kind);
+  parser = std::make_shared<pa::ModelParser>(kind);
   if (kind == cb::BackendKind::TRITON ||
       kind == cb::BackendKind::TRITON_C_API) {
     rapidjson::Document model_metadata;
@@ -1757,8 +1761,7 @@ PerfAnalyzer::write_report()
     }
     std::cout << "throughput: " << status.client_stats.infer_per_sec
               << " infer/sec, latency "
-              << (status.stabilizing_latency_ns / 1000) << " usec"
-              << std::endl;
+              << (status.stabilizing_latency_ns / 1000) << " usec" << std::endl;
   }
 
   std::unique_ptr<pa::ReportWriter> writer;

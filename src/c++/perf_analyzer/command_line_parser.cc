@@ -28,17 +28,21 @@
 #include "command_line_parser.h"
 
 #include <getopt.h>
-#include <iostream>
-#include <iomanip>
 
-#include "constants.h"
+#include <iomanip>
+#include <iostream>
+#include <string>
+
+#include "perf_analyzer_exception.h"
 
 namespace triton { namespace perfanalyzer {
 
+enum SEARCH_RANGE { kSTART = 0, kEND = 1, kSTEP = 2 };
+
 PAParamsPtr
-CLParser::parse(int argc, char** argv) {
+CLParser::parse(int argc, char** argv)
+{
   parse_command_line(argc, argv);
-  initialize_options();
   verify_options();
 
   return params_;
@@ -61,13 +65,13 @@ CLParser::format_message(std::string str, int offset) const
 }
 
 void
-CLParser::usage(char** argv, const std::string& msg)
+CLParser::usage(const std::string& msg)
 {
   if (!msg.empty()) {
     std::cerr << "error: " << msg << std::endl;
   }
 
-  std::cerr << "Usage: " << argv[0] << " [options]" << std::endl;
+  std::cerr << "Usage: " << argv_[0] << " [options]" << std::endl;
   std::cerr << "==== SYNOPSIS ====\n \n";
   std::cerr << "\t--service-kind "
                "<\"triton\"|\"tfserving\"|\"torchserve\"|\"triton_c_api\">"
@@ -644,11 +648,15 @@ CLParser::usage(char** argv, const std::string& msg)
                    "will include additional information.",
                    18)
             << std::endl;
-  exit(pa::GENERIC_ERROR);
+  exit(GENERIC_ERROR);
 }
 
 void
-CLParser::parse_command_line(int argc, char** argv) {
+CLParser::parse_command_line(int argc, char** argv)
+{
+  argc_ = argc;
+  argv_ = argv;
+
   // {name, has_arg, *flag, val}
   static struct option long_options[] = {
       {"streaming", 0, 0, 0},
@@ -728,7 +736,7 @@ CLParser::parse_command_line(int argc, char** argv) {
         std::string arg = optarg;
         auto colon_pos = arg.rfind(":");
         if (colon_pos == std::string::npos) {
-          usage(argv,
+          usage(
               "failed to parse input shape. There must be a colon after input "
               "name.");
         }
@@ -748,23 +756,23 @@ CLParser::parse_command_line(int argc, char** argv) {
               pos = comma_pos + 1;
             }
             if (dim <= 0) {
-              usage(argv, "input shape must be > 0");
+              usage("input shape must be > 0");
             }
             shape.emplace_back(dim);
           }
         }
         catch (const std::invalid_argument& ia) {
-          usage(argv, "failed to parse input shape: " + std::string(optarg));
+          usage("failed to parse input shape: " + std::string(optarg));
         }
-        input_shapes[name] = shape;
+        params_->input_shapes[name] = shape;
         break;
       }
       case 6: {
-        measurement_window_ms = std::atoi(optarg);
+        params_->measurement_window_ms = std::atoi(optarg);
         break;
       }
       case 7: {
-        using_concurrency_range = true;
+        params_->using_concurrency_range = true;
         std::string arg = optarg;
         size_t pos = 0;
         int index = 0;
@@ -772,16 +780,16 @@ CLParser::parse_command_line(int argc, char** argv) {
           while (pos != std::string::npos) {
             size_t colon_pos = arg.find(":", pos);
             if (index > 2) {
-              Usage(
-                  argv_,
+              usage(
                   "option concurrency-range can have maximum of three "
                   "elements");
             }
             if (colon_pos == std::string::npos) {
-              concurrency_range[index] = std::stoll(arg.substr(pos, colon_pos));
+              params_->concurrency_range[index] =
+                  std::stoll(arg.substr(pos, colon_pos));
               pos = colon_pos;
             } else {
-              concurrency_range[index] =
+              params_->concurrency_range[index] =
                   std::stoll(arg.substr(pos, colon_pos - pos));
               pos = colon_pos + 1;
               index++;
@@ -789,56 +797,54 @@ CLParser::parse_command_line(int argc, char** argv) {
           }
         }
         catch (const std::invalid_argument& ia) {
-          Usage(
-              argv_,
-              "failed to parse concurrency range: " + std::string(optarg));
+          usage("failed to parse concurrency range: " + std::string(optarg));
         }
         break;
       }
       case 8: {
-        latency_threshold_ms = std::atoi(optarg);
+        params_->latency_threshold_ms = std::atoi(optarg);
         break;
       }
       case 9: {
-        stability_threshold = atof(optarg) / 100;
+        params_->stability_threshold = atof(optarg) / 100;
         break;
       }
       case 10: {
-        max_trials = std::atoi(optarg);
+        params_->max_trials = std::atoi(optarg);
         break;
       }
       case 11: {
         std::string arg = optarg;
         // Check whether the argument is a directory
-        if (pa::IsDirectory(arg) || pa::IsFile(arg)) {
-          user_data.push_back(optarg);
+        if (IsDirectory(arg) || IsFile(arg)) {
+          params_->user_data.push_back(optarg);
         } else if (arg.compare("zero") == 0) {
-          zero_input = true;
+          params_->zero_input = true;
         } else if (arg.compare("random") == 0) {
           break;
         } else {
-          usage(argv, "unsupported input data provided " + std::string(optarg));
+          usage("unsupported input data provided " + std::string(optarg));
         }
         break;
       }
       case 12: {
-        string_length = std::atoi(optarg);
+        params_->string_length = std::atoi(optarg);
         break;
       }
       case 13: {
-        string_data = optarg;
+        params_->string_data = optarg;
         break;
       }
       case 14: {
-        async = true;
+        params_->async = true;
         break;
       }
       case 15: {
-        forced_sync = true;
+        params_->forced_sync = true;
         break;
       }
       case 16: {
-        using_request_rate_range = true;
+        params_->using_request_rate_range = true;
         std::string arg = optarg;
         size_t pos = 0;
         int index = 0;
@@ -846,16 +852,16 @@ CLParser::parse_command_line(int argc, char** argv) {
           while (pos != std::string::npos) {
             size_t colon_pos = arg.find(":", pos);
             if (index > 2) {
-              Usage(
-                  argv_,
+              usage(
                   "option request_rate_range can have maximum of three "
                   "elements");
             }
             if (colon_pos == std::string::npos) {
-              request_rate_range[index] = std::stod(arg.substr(pos, colon_pos));
+              params_->request_rate_range[index] =
+                  std::stod(arg.substr(pos, colon_pos));
               pos = colon_pos;
             } else {
-              request_rate_range[index] =
+              params_->request_rate_range[index] =
                   std::stod(arg.substr(pos, colon_pos - pos));
               pos = colon_pos + 1;
               index++;
@@ -863,109 +869,105 @@ CLParser::parse_command_line(int argc, char** argv) {
           }
         }
         catch (const std::invalid_argument& ia) {
-          Usage(
-              argv_,
-              "failed to parse request rate range: " + std::string(optarg));
+          usage("failed to parse request rate range: " + std::string(optarg));
         }
         break;
       }
       case 17: {
-        num_of_sequences = std::atoi(optarg);
+        params_->num_of_sequences = std::atoi(optarg);
         break;
       }
       case 18: {
-        search_mode = pa::SearchMode::BINARY;
+        params_->search_mode = SearchMode::BINARY;
         break;
       }
       case 19: {
         std::string arg = optarg;
         if (arg.compare("poisson") == 0) {
-          request_distribution = pa::Distribution::POISSON;
+          params_->request_distribution = Distribution::POISSON;
         } else if (arg.compare("constant") == 0) {
-          request_distribution = pa::Distribution::CONSTANT;
+          params_->request_distribution = Distribution::CONSTANT;
         } else {
-          Usage(
-              argv_, "unsupported request distribution provided " +
-                        std::string(optarg));
+          usage(
+              "unsupported request distribution provided " +
+              std::string(optarg));
         }
         break;
       }
       case 20:
-        using_custom_intervals = true;
-        request_intervals_file = optarg;
+        params_->using_custom_intervals = true;
+        params_->request_intervals_file = optarg;
         break;
       case 21: {
         std::string arg = optarg;
         if (arg.compare("system") == 0) {
-          shared_memory_type = pa::SharedMemoryType::SYSTEM_SHARED_MEMORY;
+          params_->shared_memory_type = SharedMemoryType::SYSTEM_SHARED_MEMORY;
         } else if (arg.compare("cuda") == 0) {
 #ifdef TRITON_ENABLE_GPU
-          shared_memory_type = pa::SharedMemoryType::CUDA_SHARED_MEMORY;
+          params_->shared_memory_type = SharedMemoryType::CUDA_SHARED_MEMORY;
 #else
-          Usage(
-              argv_,
-              "cuda shared memory is not supported when TRITON_ENABLE_GPU=0");
+          usage("cuda shared memory is not supported when TRITON_ENABLE_GPU=0");
 #endif  // TRITON_ENABLE_GPU
         }
         break;
       }
       case 22: {
-        output_shm_size = std::atoi(optarg);
+        params_->output_shm_size = std::atoi(optarg);
         break;
       }
       case 23: {
         std::string arg = optarg;
         if (arg.compare("triton") == 0) {
-          kind = cb::TRITON;
+          params_->kind = cb::TRITON;
         } else if (arg.compare("tfserving") == 0) {
-          kind = cb::TENSORFLOW_SERVING;
+          params_->kind = cb::TENSORFLOW_SERVING;
         } else if (arg.compare("torchserve") == 0) {
-          kind = cb::TORCHSERVE;
+          params_->kind = cb::TORCHSERVE;
         } else if (arg.compare("triton_c_api") == 0) {
-          kind = cb::TRITON_C_API;
+          params_->kind = cb::TRITON_C_API;
         } else {
-          usage(argv, "unsupported --service-kind specified");
+          usage("unsupported --service-kind specified");
         }
         break;
       }
       case 24:
-        model_signature_name = optarg;
+        params_->model_signature_name = optarg;
         break;
       case 25: {
-        using_grpc_compression = true;
+        params_->using_grpc_compression = true;
         std::string arg = optarg;
         if (arg.compare("none") == 0) {
-          compression_algorithm = cb::COMPRESS_NONE;
+          params_->compression_algorithm = cb::COMPRESS_NONE;
         } else if (arg.compare("deflate") == 0) {
-          compression_algorithm = cb::COMPRESS_DEFLATE;
+          params_->compression_algorithm = cb::COMPRESS_DEFLATE;
         } else if (arg.compare("gzip") == 0) {
-          compression_algorithm = cb::COMPRESS_GZIP;
+          params_->compression_algorithm = cb::COMPRESS_GZIP;
         } else {
-          usage(argv, "unsupported --grpc-compression-algorithm specified");
+          usage("unsupported --grpc-compression-algorithm specified");
         }
         break;
       }
       case 26: {
         std::string arg = optarg;
         if (arg.compare("time_windows") == 0) {
-          measurement_mode = pa::MeasurementMode::TIME_WINDOWS;
+          params_->measurement_mode = MeasurementMode::TIME_WINDOWS;
         } else if (arg.compare("count_windows") == 0) {
-          measurement_mode = pa::MeasurementMode::COUNT_WINDOWS;
+          params_->measurement_mode = MeasurementMode::COUNT_WINDOWS;
         } else {
-          usage(argv, "unsupported --measurement-mode specified");
+          usage("unsupported --measurement-mode specified");
         }
         break;
       }
       case 27: {
-        measurement_request_count = std::atoi(optarg);
+        params_->measurement_request_count = std::atoi(optarg);
         break;
       }
       case 28: {
-        triton_server_path = optarg;
+        params_->triton_server_path = optarg;
         break;
       }
       case 29: {
-        model_repository_path = optarg;
+        params_->model_repository_path = optarg;
         break;
       }
       case 30: {
@@ -976,440 +978,424 @@ CLParser::parse_command_line(int argc, char** argv) {
           while (pos != std::string::npos) {
             size_t colon_pos = arg.find(":", pos);
             if (index > 1) {
-              Usage(
-                  argv_,
+              usage(
                   "option sequence-id-range can have maximum of two "
                   "elements");
             }
             if (colon_pos == std::string::npos) {
               if (index == 0) {
-                start_sequence_id = std::stoll(arg.substr(pos, colon_pos));
+                params_->start_sequence_id =
+                    std::stoll(arg.substr(pos, colon_pos));
               } else {
-                sequence_id_range =
-                    std::stoll(arg.substr(pos, colon_pos)) - start_sequence_id;
+                params_->sequence_id_range =
+                    std::stoll(arg.substr(pos, colon_pos)) -
+                    params_->start_sequence_id;
               }
               pos = colon_pos;
             } else {
-              start_sequence_id = std::stoll(arg.substr(pos, colon_pos - pos));
+              params_->start_sequence_id =
+                  std::stoll(arg.substr(pos, colon_pos - pos));
               pos = colon_pos + 1;
               index++;
             }
           }
         }
         catch (const std::invalid_argument& ia) {
-          Usage(
-              argv_,
-              "failed to parse concurrency range: " + std::string(optarg));
+          usage("failed to parse concurrency range: " + std::string(optarg));
         }
         break;
       }
       case 31: {
-        ssl_options.ssl_grpc_use_ssl = true;
+        params_->ssl_options.ssl_grpc_use_ssl = true;
         break;
       }
       case 32: {
-        if (pa::IsFile(optarg)) {
-          ssl_options.ssl_grpc_root_certifications_file = optarg;
+        if (IsFile(optarg)) {
+          params_->ssl_options.ssl_grpc_root_certifications_file = optarg;
         } else {
-          Usage(
-              argv_,
+          usage(
               "--ssl-grpc-root-certifications-file must be a valid file path");
         }
         break;
       }
       case 33: {
-        if (pa::IsFile(optarg)) {
-          ssl_options.ssl_grpc_private_key_file = optarg;
+        if (IsFile(optarg)) {
+          params_->ssl_options.ssl_grpc_private_key_file = optarg;
         } else {
-          usage(argv, "--ssl-grpc-private-key-file must be a valid file path");
+          usage("--ssl-grpc-private-key-file must be a valid file path");
         }
         break;
       }
       case 34: {
-        if (pa::IsFile(optarg)) {
-          ssl_options.ssl_grpc_certificate_chain_file = optarg;
+        if (IsFile(optarg)) {
+          params_->ssl_options.ssl_grpc_certificate_chain_file = optarg;
         } else {
-          Usage(
-              argv_,
-              "--ssl-grpc-certificate-chain-file must be a valid file path");
+          usage("--ssl-grpc-certificate-chain-file must be a valid file path");
         }
         break;
       }
       case 35: {
         if (std::atol(optarg) == 0 || std::atol(optarg) == 1) {
-          ssl_options.ssl_https_verify_peer = std::atol(optarg);
+          params_->ssl_options.ssl_https_verify_peer = std::atol(optarg);
         } else {
-          usage(argv, "--ssl-https-verify-peer must be 0 or 1");
+          usage("--ssl-https-verify-peer must be 0 or 1");
         }
         break;
       }
       case 36: {
         if (std::atol(optarg) == 0 || std::atol(optarg) == 1 ||
             std::atol(optarg) == 2) {
-          ssl_options.ssl_https_verify_host = std::atol(optarg);
+          params_->ssl_options.ssl_https_verify_host = std::atol(optarg);
         } else {
-          usage(argv, "--ssl-https-verify-host must be 0, 1, or 2");
+          usage("--ssl-https-verify-host must be 0, 1, or 2");
         }
         break;
       }
       case 37: {
-        if (pa::IsFile(optarg)) {
-          ssl_options.ssl_https_ca_certificates_file = optarg;
+        if (IsFile(optarg)) {
+          params_->ssl_options.ssl_https_ca_certificates_file = optarg;
         } else {
-          Usage(
-              argv_,
-              "--ssl-https-ca-certificates-file must be a valid file path");
+          usage("--ssl-https-ca-certificates-file must be a valid file path");
         }
         break;
       }
       case 38: {
-        if (pa::IsFile(optarg)) {
-          ssl_options.ssl_https_client_certificate_file = optarg;
+        if (IsFile(optarg)) {
+          params_->ssl_options.ssl_https_client_certificate_file = optarg;
         } else {
-          Usage(
-              argv_,
+          usage(
               "--ssl-https-client-certificate-file must be a valid file path");
         }
         break;
       }
       case 39: {
         if (std::string(optarg) == "PEM" || std::string(optarg) == "DER") {
-          ssl_options.ssl_https_client_certificate_type = optarg;
+          params_->ssl_options.ssl_https_client_certificate_type = optarg;
         } else {
-          Usage(
-              argv_,
-              "--ssl-https-client-certificate-type must be 'PEM' or 'DER'");
+          usage("--ssl-https-client-certificate-type must be 'PEM' or 'DER'");
         }
         break;
       }
       case 40: {
-        if (pa::IsFile(optarg)) {
-          ssl_options.ssl_https_private_key_file = optarg;
+        if (IsFile(optarg)) {
+          params_->ssl_options.ssl_https_private_key_file = optarg;
         } else {
-          usage(argv, "--ssl-https-private-key-file must be a valid file path");
+          usage("--ssl-https-private-key-file must be a valid file path");
         }
         break;
       }
       case 41: {
         if (std::string(optarg) == "PEM" || std::string(optarg) == "DER") {
-          ssl_options.ssl_https_private_key_type = optarg;
+          params_->ssl_options.ssl_https_private_key_type = optarg;
         } else {
-          usage(argv, "--ssl-https-private-key-type must be 'PEM' or 'DER'");
+          usage("--ssl-https-private-key-type must be 'PEM' or 'DER'");
         }
         break;
       }
       case 42: {
-        verbose_csv = true;
+        params_->verbose_csv = true;
         break;
       }
       case 43: {
-        enable_mpi = true;
+        params_->enable_mpi = true;
         break;
       }
       case 44: {
-        trace_options["trace_file"] = {optarg};
+        params_->trace_options["trace_file"] = {optarg};
         break;
       }
       case 45: {
-        trace_options["trace_level"] = {optarg};
+        params_->trace_options["trace_level"] = {optarg};
         break;
       }
       case 46: {
-        trace_options["trace_rate"] = {optarg};
+        params_->trace_options["trace_rate"] = {optarg};
         break;
       }
       case 47: {
-        trace_options["trace_count"] = {optarg};
+        params_->trace_options["trace_count"] = {optarg};
         break;
       }
       case 48: {
-        trace_options["log_frequency"] = {optarg};
+        params_->trace_options["log_frequency"] = {optarg};
         break;
       }
       case 'v':
-        extra_verbose = verbose;
-        verbose = true;
+        params_->extra_verbose = params_->verbose;
+        params_->verbose = true;
         break;
       case 'z':
-        zero_input = true;
+        params_->zero_input = true;
         break;
       case 'd':
-        using_old_options = true;
-        dynamic_concurrency_mode = true;
+        params_->using_old_options = true;
+        params_->dynamic_concurrency_mode = true;
         break;
       case 'u':
-        url_specified = true;
-        url = optarg;
+        params_->url_specified = true;
+        params_->url = optarg;
         break;
       case 'm':
-        model_name = optarg;
+        params_->model_name = optarg;
         break;
       case 'x':
-        model_version = optarg;
+        params_->model_version = optarg;
         break;
       case 'b':
-        batch_size = std::atoi(optarg);
-        using_batch_size = true;
+        params_->batch_size = std::atoi(optarg);
+        params_->using_batch_size = true;
         break;
       case 't':
-        using_old_options = true;
-        concurrent_request_count = std::atoi(optarg);
+        params_->using_old_options = true;
+        params_->concurrent_request_count = std::atoi(optarg);
         break;
       case 'p':
-        measurement_window_ms = std::atoi(optarg);
+        params_->measurement_window_ms = std::atoi(optarg);
         break;
       case 'i':
-        protocol = pa::ParseProtocol(optarg);
+        params_->protocol = ParseProtocol(optarg);
         break;
       case 'H': {
         std::string arg = optarg;
         std::string header = arg.substr(0, arg.find(":"));
-        (*http_headers)[header] = arg.substr(header.size() + 1);
+        (*params_->http_headers)[header] = arg.substr(header.size() + 1);
         break;
       }
       case 'l':
-        latency_threshold_ms = std::atoi(optarg);
+        params_->latency_threshold_ms = std::atoi(optarg);
         break;
       case 'c':
-        using_old_options = true;
-        max_concurrency = std::atoi(optarg);
+        params_->using_old_options = true;
+        params_->max_concurrency = std::atoi(optarg);
         break;
       case 'r':
-        max_trials = std::atoi(optarg);
+        params_->max_trials = std::atoi(optarg);
         break;
       case 's':
-        stability_threshold = atof(optarg) / 100;
+        params_->stability_threshold = atof(optarg) / 100;
         break;
       case 'f':
-        filename = optarg;
+        params_->filename = optarg;
         break;
       case 'a':
-        async = true;
+        params_->async = true;
         break;
       case '?':
-        usage(argv);
+        usage();
         break;
     }
   }
 
-  target_concurrency =
-      (using_concurrency_range || using_old_options ||
-       !(using_request_rate_range || using_custom_intervals));
-}
+  params_->mpi_driver = std::shared_ptr<triton::perfanalyzer::MPIDriver>{
+      std::make_shared<triton::perfanalyzer::MPIDriver>(params_->enable_mpi)};
+  params_->mpi_driver->MPIInit(&argc, &argv);
 
-void
-CLParser::initialize_options()
-{
-  mpi_driver = std::shared_ptr<triton::perfanalyzer::MPIDriver>{
-      std::make_shared<triton::perfanalyzer::MPIDriver>(enable_mpi)};
-  mpi_driver->MPIInit(&argc_, &argv_);
-
-  if (!url_specified && (protocol == cb::ProtocolType::GRPC)) {
-    if (kind == cb::BackendKind::TRITON) {
-      url = "localhost:8001";
-    } else if (kind == cb::BackendKind::TENSORFLOW_SERVING) {
-      url = "localhost:8500";
+  if (!params_->url_specified &&
+      (params_->protocol == cb::ProtocolType::GRPC)) {
+    if (params_->kind == cb::BackendKind::TRITON) {
+      params_->url = "localhost:8001";
+    } else if (params_->kind == cb::BackendKind::TENSORFLOW_SERVING) {
+      params_->url = "localhost:8500";
     }
   }
 
   // Overriding the max_threads default for request_rate search
-  if (!max_threads_specified && target_concurrency) {
-    max_threads = 16;
+  if (!params_->max_threads_specified && params_->targeting_concurrency()) {
+    params_->max_threads = 16;
   }
 
-  if (using_custom_intervals) {
+  if (params_->using_custom_intervals) {
     // Will be using user-provided time intervals, hence no control variable.
-    search_mode = pa::SearchMode::NONE;
+    params_->search_mode = SearchMode::NONE;
   }
 }
 
-void 
-PerfAnalyzer::verify_options() 
+void
+CLParser::verify_options()
 {
-  if (model_name.empty()) {
-    usage(argv, "-m flag must be specified");
+  if (params_->model_name.empty()) {
+    usage("-m flag must be specified");
   }
-  if (batch_size <= 0) {
-    usage(argv, "batch size must be > 0");
+  if (params_->batch_size <= 0) {
+    usage("batch size must be > 0");
   }
-  if (measurement_window_ms <= 0) {
-    usage(argv, "measurement window must be > 0 in msec");
+  if (params_->measurement_window_ms <= 0) {
+    usage("measurement window must be > 0 in msec");
   }
-  if (measurement_request_count <= 0) {
-    usage(argv, "measurement request count must be > 0");
+  if (params_->measurement_request_count <= 0) {
+    usage("measurement request count must be > 0");
   }
-  if (concurrency_range[SEARCH_RANGE::kSTART] <= 0 ||
-      concurrent_request_count < 0) {
-    usage(argv, "The start of the search range must be > 0");
+  if (params_->concurrency_range[SEARCH_RANGE::kSTART] <= 0 ||
+      params_->concurrent_request_count < 0) {
+    usage("The start of the search range must be > 0");
   }
-  if (request_rate_range[SEARCH_RANGE::kSTART] <= 0) {
-    usage(argv, "The start of the search range must be > 0");
+  if (params_->request_rate_range[SEARCH_RANGE::kSTART] <= 0) {
+    usage("The start of the search range must be > 0");
   }
-  if (protocol == cb::ProtocolType::UNKNOWN) {
-    usage(argv, "protocol should be either HTTP or gRPC");
+  if (params_->protocol == cb::ProtocolType::UNKNOWN) {
+    usage("protocol should be either HTTP or gRPC");
   }
-  if (streaming && (protocol != cb::ProtocolType::GRPC)) {
-    usage(argv, "streaming is only allowed with gRPC protocol");
+  if (params_->streaming && (params_->protocol != cb::ProtocolType::GRPC)) {
+    usage("streaming is only allowed with gRPC protocol");
   }
-  if (using_grpc_compression && (protocol != cb::ProtocolType::GRPC)) {
-    usage(argv, "compression is only allowed with gRPC protocol");
+  if (params_->using_grpc_compression &&
+      (params_->protocol != cb::ProtocolType::GRPC)) {
+    usage("compression is only allowed with gRPC protocol");
   }
-  if (max_threads == 0) {
-    usage(argv, "maximum number of threads must be > 0");
+  if (params_->max_threads == 0) {
+    usage("maximum number of threads must be > 0");
   }
-  if (sequence_length == 0) {
-    sequence_length = 20;
+  if (params_->sequence_length == 0) {
+    params_->sequence_length = 20;
     std::cerr << "WARNING: using an invalid sequence length. Perf Analyzer will"
               << " use default value if it is measuring on sequence model."
               << std::endl;
   }
-  if (start_sequence_id == 0) {
-    start_sequence_id = 1;
+  if (params_->start_sequence_id == 0) {
+    params_->start_sequence_id = 1;
     std::cerr << "WARNING: using an invalid start sequence id. Perf Analyzer"
               << " will use default value if it is measuring on sequence model."
               << std::endl;
   }
-  if (percentile != -1 && (percentile > 99 || percentile < 1)) {
-    usage(argv, "percentile must be -1 for not reporting or in range (0, 100)");
+  if (params_->percentile != -1 &&
+      (params_->percentile > 99 || params_->percentile < 1)) {
+    usage("percentile must be -1 for not reporting or in range (0, 100)");
   }
-  if (zero_input && !user_data.empty()) {
-    usage(argv, "zero input can't be set when data directory is provided");
+  if (params_->zero_input && !params_->user_data.empty()) {
+    usage("zero input can't be set when data directory is provided");
   }
-  if (async && forced_sync) {
-    usage(argv, "Both --async and --sync can not be specified simultaneously.");
+  if (params_->async && params_->forced_sync) {
+    usage("Both --async and --sync can not be specified simultaneously.");
   }
 
-  if (using_concurrency_range && using_old_options) {
-    usage(argv, "can not use deprecated options with --concurrency-range");
-  } else if (using_old_options) {
-    if (dynamic_concurrency_mode) {
-      concurrency_range[SEARCH_RANGE::kEND] = max_concurrency;
+  if (params_->using_concurrency_range && params_->using_old_options) {
+    usage("can not use deprecated options with --concurrency-range");
+  } else if (params_->using_old_options) {
+    if (params_->dynamic_concurrency_mode) {
+      params_->concurrency_range[SEARCH_RANGE::kEND] = params_->max_concurrency;
     }
-    concurrency_range[SEARCH_RANGE::kSTART] = concurrent_request_count;
+    params_->concurrency_range[SEARCH_RANGE::kSTART] =
+        params_->concurrent_request_count;
   }
 
-  if (using_request_rate_range && using_old_options) {
-    usage(argv, "can not use concurrency options with --request-rate-range");
+  if (params_->using_request_rate_range && params_->using_old_options) {
+    usage("can not use concurrency options with --request-rate-range");
   }
 
-  if (using_request_rate_range && using_concurrency_range) {
-    Usage(
-        argv_,
+  if (params_->using_request_rate_range && params_->using_concurrency_range) {
+    usage(
         "can not specify concurrency_range and request_rate_range "
         "simultaneously");
   }
 
-  if (using_request_rate_range && mpi_driver->IsMPIRun() &&
-      (request_rate_range[SEARCH_RANGE::kEND] != 1.0 ||
-       request_rate_range[SEARCH_RANGE::kSTEP] != 1.0)) {
-    usage(argv, "cannot use request rate range with multi-model mode");
+  if (params_->using_request_rate_range && params_->mpi_driver->IsMPIRun() &&
+      (params_->request_rate_range[SEARCH_RANGE::kEND] != 1.0 ||
+       params_->request_rate_range[SEARCH_RANGE::kSTEP] != 1.0)) {
+    usage("cannot use request rate range with multi-model mode");
   }
 
-  if (using_custom_intervals && using_old_options) {
-    usage(argv, "can not use deprecated options with --request-intervals");
+  if (params_->using_custom_intervals && params_->using_old_options) {
+    usage("can not use deprecated options with --request-intervals");
   }
 
-  if ((using_custom_intervals) &&
-      (using_request_rate_range || using_concurrency_range)) {
-    Usage(
-        argv_,
+  if ((params_->using_custom_intervals) &&
+      (params_->using_request_rate_range || params_->using_concurrency_range)) {
+    usage(
         "can not use --concurrency-range or --request-rate-range "
         "along with --request-intervals");
   }
 
-  if (using_concurrency_range && mpi_driver->IsMPIRun() &&
-      (concurrency_range[SEARCH_RANGE::kEND] != 1 ||
-       concurrency_range[SEARCH_RANGE::kSTEP] != 1)) {
-    usage(argv, "cannot use concurrency range with multi-model mode");
+  if (params_->using_concurrency_range && params_->mpi_driver->IsMPIRun() &&
+      (params_->concurrency_range[SEARCH_RANGE::kEND] != 1 ||
+       params_->concurrency_range[SEARCH_RANGE::kSTEP] != 1)) {
+    usage("cannot use concurrency range with multi-model mode");
   }
 
-  if (((concurrency_range[SEARCH_RANGE::kEND] == pa::NO_LIMIT) ||
-       (request_rate_range[SEARCH_RANGE::kEND] ==
-        static_cast<double>(pa::NO_LIMIT))) &&
-      (latency_threshold_ms == pa::NO_LIMIT)) {
-    Usage(
-        argv_,
+  if (((params_->concurrency_range[SEARCH_RANGE::kEND] == NO_LIMIT) ||
+       (params_->request_rate_range[SEARCH_RANGE::kEND] ==
+        static_cast<double>(NO_LIMIT))) &&
+      (params_->latency_threshold_ms == NO_LIMIT)) {
+    usage(
         "The end of the search range and the latency limit can not be both 0 "
         "(or 0.0) simultaneously");
   }
 
-  if (((concurrency_range[SEARCH_RANGE::kEND] == pa::NO_LIMIT) ||
-       (request_rate_range[SEARCH_RANGE::kEND] ==
-        static_cast<double>(pa::NO_LIMIT))) &&
-      (search_mode == pa::SearchMode::BINARY)) {
-    Usage(
-        argv_,
-        "The end of the range can not be 0 (or 0.0) for binary search mode.");
+  if (((params_->concurrency_range[SEARCH_RANGE::kEND] == NO_LIMIT) ||
+       (params_->request_rate_range[SEARCH_RANGE::kEND] ==
+        static_cast<double>(NO_LIMIT))) &&
+      (params_->search_mode == SearchMode::BINARY)) {
+    usage("The end of the range can not be 0 (or 0.0) for binary search mode.");
   }
 
-  if ((search_mode == pa::SearchMode::BINARY) &&
-      (latency_threshold_ms == pa::NO_LIMIT)) {
-    usage(argv, "The latency threshold can not be 0 for binary search mode.");
+  if ((params_->search_mode == SearchMode::BINARY) &&
+      (params_->latency_threshold_ms == NO_LIMIT)) {
+    usage("The latency threshold can not be 0 for binary search mode.");
   }
 
-  if (((concurrency_range[SEARCH_RANGE::kEND] <
-        concurrency_range[SEARCH_RANGE::kSTART]) ||
-       (request_rate_range[SEARCH_RANGE::kEND] <
-        request_rate_range[SEARCH_RANGE::kSTART])) &&
-      (search_mode == pa::SearchMode::BINARY)) {
-    Usage(
-        argv_,
+  if (((params_->concurrency_range[SEARCH_RANGE::kEND] <
+        params_->concurrency_range[SEARCH_RANGE::kSTART]) ||
+       (params_->request_rate_range[SEARCH_RANGE::kEND] <
+        params_->request_rate_range[SEARCH_RANGE::kSTART])) &&
+      (params_->search_mode == SearchMode::BINARY)) {
+    usage(
         "The end of the range can not be less than start of the range for "
         "binary search mode.");
   }
 
-    if (kind == cb::TENSORFLOW_SERVING) {
-    if (protocol != cb::ProtocolType::GRPC) {
+  if (params_->kind == cb::TENSORFLOW_SERVING) {
+    if (params_->protocol != cb::ProtocolType::GRPC) {
       std::cerr
           << "perf_analyzer supports only grpc protocol for TensorFlow Serving."
           << std::endl;
-      throw pa::PerfAnalyzerException(pa::GENERIC_ERROR);
-    } else if (streaming) {
+      throw PerfAnalyzerException(GENERIC_ERROR);
+    } else if (params_->streaming) {
       std::cerr
           << "perf_analyzer does not support streaming for TensorFlow Serving."
           << std::endl;
-      throw pa::PerfAnalyzerException(pa::GENERIC_ERROR);
-    } else if (async) {
+      throw PerfAnalyzerException(GENERIC_ERROR);
+    } else if (params_->async) {
       std::cerr
           << "perf_analyzer does not support async API for TensorFlow Serving."
           << std::endl;
-      throw pa::PerfAnalyzerException(pa::GENERIC_ERROR);
-    } else if (!using_batch_size) {
-      batch_size = 0;
+      throw PerfAnalyzerException(GENERIC_ERROR);
+    } else if (!params_->using_batch_size) {
+      params_->batch_size = 0;
     }
-  } else if (kind == cb::TORCHSERVE) {
-    if (user_data.empty()) {
+  } else if (params_->kind == cb::TORCHSERVE) {
+    if (params_->user_data.empty()) {
       std::cerr << "--input-data should be provided with a json file with "
                    "input data for torchserve"
                 << std::endl;
-      throw pa::PerfAnalyzerException(pa::GENERIC_ERROR);
+      throw PerfAnalyzerException(GENERIC_ERROR);
     }
   }
 
-  if (kind == cb::BackendKind::TRITON_C_API) {
+  if (params_->kind == cb::BackendKind::TRITON_C_API) {
     std::cout << " USING C API: only default functionalities supported "
               << std::endl;
-    if (!target_concurrency) {
+    if (!params_->targeting_concurrency()) {
       std::cerr << "Only target concurrency is supported by C API" << std::endl;
-      throw pa::PerfAnalyzerException(pa::GENERIC_ERROR);
-    } else if (shared_memory_type != pa::NO_SHARED_MEMORY) {
+      throw PerfAnalyzerException(GENERIC_ERROR);
+    } else if (params_->shared_memory_type != NO_SHARED_MEMORY) {
       std::cerr << "Shared memory not yet supported by C API" << std::endl;
-      throw pa::PerfAnalyzerException(pa::GENERIC_ERROR);
+      throw PerfAnalyzerException(GENERIC_ERROR);
     } else if (
-        triton_server_path.empty() || model_repository_path.empty() ||
-        memory_type.empty()) {
+        params_->triton_server_path.empty() ||
+        params_->model_repository_path.empty() ||
+        params_->memory_type.empty()) {
       std::cerr
           << "Not enough information to create C API. /lib/libtritonserver.so "
              "directory:"
-          << triton_server_path << " model repo:" << model_repository_path
-          << " memory type:" << memory_type << std::endl;
-      throw pa::PerfAnalyzerException(pa::GENERIC_ERROR);
-    } else if (async) {
+          << params_->triton_server_path
+          << " model repo:" << params_->model_repository_path
+          << " memory type:" << params_->memory_type << std::endl;
+      throw PerfAnalyzerException(GENERIC_ERROR);
+    } else if (params_->async) {
       std::cerr << "Async API not yet supported by C API" << std::endl;
-      throw pa::PerfAnalyzerException(pa::GENERIC_ERROR);
+      throw PerfAnalyzerException(GENERIC_ERROR);
     }
-    protocol = cb::ProtocolType::UNKNOWN;
+    params_->protocol = cb::ProtocolType::UNKNOWN;
   }
 }
 
-}}
+}}  // namespace triton::perfanalyzer

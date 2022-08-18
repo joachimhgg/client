@@ -28,7 +28,12 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
+
+#include "constants.h"
+#include "mpi_utils.h"
+#include "perf_utils.h"
 
 namespace triton { namespace perfanalyzer {
 
@@ -41,28 +46,94 @@ struct PerfAnalyzerParameters {
   bool streaming = false;
   size_t max_threads = 4;
   bool max_threads_specified = false;
-  size_t sequence_length = 20; // average length of a sentence
+  size_t sequence_length = 20;  // average length of a sentence
   int32_t percentile = -1;
   std::vector<std::string> user_data;
+  std::unordered_map<std::string, std::vector<int64_t>> input_shapes;
+  uint64_t measurement_window_ms = 5000;
+  bool using_concurrency_range = false;
+  uint64_t concurrency_range[3] = {1, 1, 1};
+  uint64_t latency_threshold_ms = NO_LIMIT;
+  double stability_threshold = 0.1;
+  size_t max_trials = 10;
+  bool zero_input = false;
+  size_t string_length = 128;
+  std::string string_data;
+  bool async = false;
+  bool forced_sync = false;
+  bool using_request_rate_range = false;
+  double request_rate_range[3] = {1.0, 1.0, 1.0};
+  uint32_t num_of_sequences = 4;
+  SearchMode search_mode = SearchMode::LINEAR;
+  Distribution request_distribution = Distribution::CONSTANT;
+  bool using_custom_intervals = false;
+  std::string request_intervals_file{""};
+  SharedMemoryType shared_memory_type = NO_SHARED_MEMORY;
+  size_t output_shm_size = 100 * 1024;
+  clientbackend::BackendKind kind = clientbackend::BackendKind::TRITON;
+  std::string model_signature_name{"serving_default"};
+  bool using_grpc_compression = false;
+  clientbackend::GrpcCompressionAlgorithm compression_algorithm =
+      clientbackend::GrpcCompressionAlgorithm::COMPRESS_NONE;
+  MeasurementMode measurement_mode = MeasurementMode::TIME_WINDOWS;
+  uint64_t measurement_request_count = 50;
+  std::string triton_server_path;
+  std::string model_repository_path;
+  uint64_t start_sequence_id = 1;
+  uint64_t sequence_id_range = UINT32_MAX;
+  clientbackend::SslOptionsBase ssl_options;  // gRPC and HTTP SSL options
+
+  // Verbose csv option for including additional information
+  bool verbose_csv = false;
+
+  // Enable MPI option for using MPI functionality with multi-model mode.
+  bool enable_mpi = false;
+  std::map<std::string, std::vector<std::string>> trace_options;
+  bool using_old_options = false;
+  bool dynamic_concurrency_mode = false;
+  bool url_specified = false;
+  std::string url{"localhost:8000"};
+  std::string model_name;
+  std::string model_version;
+  int32_t batch_size = 1;
+  bool using_batch_size = false;
+  int32_t concurrent_request_count = 1;
+  clientbackend::ProtocolType protocol = clientbackend::ProtocolType::HTTP;
+  std::shared_ptr<clientbackend::Headers> http_headers{
+      new clientbackend::Headers()};
+  size_t max_concurrency = 0;
+  std::string filename{""};
+  std::shared_ptr<MPIDriver> mpi_driver;
+  std::string memory_type{"system"};  // currently not used, to be removed
+
+  // Return true if targeting concurrency
+  //
+  bool targeting_concurrency() const
+  {
+    return (
+        using_concurrency_range || using_old_options ||
+        !(using_request_rate_range || using_custom_intervals));
+  }
 };
 
-using PAParamsPtr = std::shared_ptr<PerfAnalyzerParameters>; 
+using PAParamsPtr = std::shared_ptr<PerfAnalyzerParameters>;
 
 class CLParser {
  public:
-  CLParser() : params_(new PerfAnalyzerParameters{}){}
+  CLParser() : params_(new PerfAnalyzerParameters{}) {}
 
   // Parse command line arguements into a parameters struct
   //
   PAParamsPtr parse(int argc, char** argv);
 
  private:
+  char** argv_;
+  int argc_;
   PAParamsPtr params_;
 
   std::string format_message(std::string str, int offset) const;
-  void usage(char** argv, const std::string& msg = std::string());
+  virtual void usage(const std::string& msg = std::string());
   void parse_command_line(int argc, char** argv);
-  void initialize_options();
   void verify_options();
 };
-}} // namespace triton::perfanalyzer
+}}  // namespace triton::perfanalyzer
