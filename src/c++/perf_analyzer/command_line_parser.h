@@ -27,6 +27,8 @@
 #pragma once
 
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace triton { namespace perfanalyzer {
 
@@ -37,6 +39,11 @@ struct PerfAnalyzerParameters {
   bool verbose = false;
   bool extra_verbose = false;
   bool streaming = false;
+  size_t max_threads = 4;
+  bool max_threads_specified = false;
+  size_t sequence_length = 20; // average length of a sentence
+  int32_t percentile = -1;
+  std::vector<std::string> user_data;
 };
 
 using PAParamsPtr = std::shared_ptr<PerfAnalyzerParameters>; 
@@ -52,5 +59,10 @@ class CLParser {
  private:
   PAParamsPtr params_;
 
+  std::string format_message(std::string str, int offset) const;
+  void usage(char** argv, const std::string& msg = std::string());
+  void parse_command_line(int argc, char** argv);
+  void initialize_options();
+  void verify_options();
 };
 }} // namespace triton::perfanalyzer

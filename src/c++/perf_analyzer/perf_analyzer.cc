@@ -57,6 +57,7 @@ namespace {
 
 enum SEARCH_RANGE { kSTART = 0, kEND = 1, kSTEP = 2 };
 
+// Remove
 // Used to format the usage message
 std::string
 FormatMessage(std::string str, int offset)
@@ -73,6 +74,7 @@ FormatMessage(std::string str, int offset)
   return str;
 }
 
+// Remove
 void
 Usage(char** argv, const std::string& msg = std::string())
 {

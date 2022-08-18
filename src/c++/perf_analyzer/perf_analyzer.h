@@ -184,12 +184,12 @@ class PerfAnalyzer {
   // Command line options
   //
   cb::BackendKind kind{cb::BackendKind::TRITON};
-  bool verbose = false;
-  bool extra_verbose = false;
-  bool streaming = false;
-  size_t max_threads = 4;
-  size_t sequence_length = 20; // average length of a sentence
-  int32_t percentile = -1;
+  bool verbose = false;  // rm
+  bool extra_verbose = false; //rm
+  bool streaming = false; //rm
+  size_t max_threads = 4; //rm
+  size_t sequence_length = 20; // rm
+  int32_t percentile = -1; // rm
   uint64_t latency_threshold_ms = pa::NO_LIMIT;
   int32_t batch_size = 1;
   bool using_batch_size = false;
@@ -214,7 +214,7 @@ class PerfAnalyzer {
   std::unordered_map<std::string, std::vector<int64_t>> input_shapes;
   size_t string_length = 128;
   std::string string_data;
-  std::vector<std::string> user_data;
+  std::vector<std::string> user_data; //rm
   bool zero_input = false;
   int32_t concurrent_request_count = 1;
   size_t max_concurrency = 0;
@@ -237,7 +237,7 @@ class PerfAnalyzer {
   // Required for detecting the use of conflicting options
   bool using_old_options = false;
   bool url_specified = false;
-  bool max_threads_specified = false;
+  bool max_threads_specified = false; //rm
 
   // C Api backend required info
   const std::string DEFAULT_MEMORY_TYPE = "system";
