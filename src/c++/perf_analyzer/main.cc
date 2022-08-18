@@ -34,10 +34,8 @@ main(int argc, char* argv[])
 {
   try {
     // triton::perfanalyzer::CLParser clp;
-    // PAParamsPtr params = clp.parse(argc, argv);
-    pa::PAParamsPtr params(new pa::PerfAnalyzerParameters{});
-    std::cout << "Verbose set to " << params->verbose << std::endl;
-
+    // pa::PAParamsPtr params = clp.parse(argc, argv);
+    
     // PerfAnalyzer analyzer(params);
     PerfAnalyzer analyzer(argc, argv);
     analyzer.run();

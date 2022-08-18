@@ -24,14 +24,33 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
+#include <array>
 
+#include "doctest.h"
 #include "command_line_parser.h"
 
 namespace triton { namespace perfanalyzer {
 
-PAParamsPtr
-CLParser::parse(int argc, char** argv) {
-  return params_;
+TEST_CASE("Testing PerfAnalyzerParameters") {
+  PAParamsPtr params(new PerfAnalyzerParameters{});
+
+  CHECK(params->verbose == false);
+  CHECK(params->streaming == false);
+  CHECK(params->extra_verbose == false);
+}
+
+TEST_CASE("Testing Command Line Parser") {
+   CLParser parser;
+
+  SUBCASE("with no parameters") {
+    char* argv[1] = {"appname"};
+    int argc = 1;
+    PAParamsPtr p = parser.parse(argc, argv);
+
+    CHECK(p->verbose == false);
+    CHECK(p->streaming == false);
+    CHECK(p->extra_verbose == false);
+  }
 }
 
 }}

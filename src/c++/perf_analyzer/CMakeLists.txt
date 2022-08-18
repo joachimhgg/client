@@ -140,8 +140,12 @@ add_executable(
   ${PERF_ANALYZER_UNIT_TESTS_HDRS}
   mock_inference_profiler.h
   test_inference_profiler.cc
+  test_command_line_parser.cc
   $<TARGET_OBJECTS:json-utils-library>
 )
+
+set_target_properties(perf_analyzer_unit_tests 
+  PROPERTIES COMPILE_FLAGS "-Wno-write-strings")
 
 target_link_libraries(
   perf_analyzer_unit_tests

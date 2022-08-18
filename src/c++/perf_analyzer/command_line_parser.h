@@ -41,4 +41,16 @@ struct PerfAnalyzerParameters {
 
 using PAParamsPtr = std::shared_ptr<PerfAnalyzerParameters>; 
 
+class CLParser {
+ public:
+  CLParser() : params_(new PerfAnalyzerParameters{}){}
+
+  // Parse command line arguements into a parameters struct
+  //
+  PAParamsPtr parse(int argc, char** argv);
+
+ private:
+  PAParamsPtr params_;
+
+};
 }} // namespace triton::perfanalyzer
