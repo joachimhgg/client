@@ -24,6 +24,8 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
+#include <getopt.h>
+
 #include <array>
 
 #include "command_line_parser.h"
@@ -256,42 +258,148 @@ TEST_CASE("Testing PerfAnalyzerParameters")
 class TestCLParser : public CLParser {
  public:
   std::string get_usage_message() const { return usage_message_; }
+  bool usage_called() const { return usage_called_; }
 
  private:
   std::string usage_message_;
+  bool usage_called_ = false;
 
   virtual void usage(const std::string& msg = std::string())
   {
+    usage_called_ = true;
     usage_message_ = msg;
   }
 };
 
 TEST_CASE("Testing Command Line Parser")
 {
-  TestCLParser parser;
+  char* model_name = "my_model";
+  char* app_name = "test_perf_analyzer";
+
+  TestCLParser parser;  // Command Line parser under test
+  PAParamsPtr act;      // Actual options parsed from parser
+  PAParamsPtr exp{new PerfAnalyzerParameters()};  // Expected results
+
+  // Most common defaults
+  exp->model_name = model_name;  // model_name;
+  exp->max_threads = 16;
 
   SUBCASE("with no parameters")
   {
-    char* argv[1] = {"test_perf_analyzer"};
     int argc = 1;
-    PAParamsPtr p;
-    REQUIRE_NOTHROW(p = parser.parse(argc, argv));
+    char* argv[argc] = {app_name};
 
+    REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+    REQUIRE(parser.usage_called());
     CHECK_STRING(
         "Usage Message", parser.get_usage_message(),
         "-m flag must be specified");
+
+    exp->model_name = "";
+    CHECK_PARAMS(act, exp);
+    optind = 1;
   }
 
   SUBCASE("with min parameters")
   {
-    char* argv[3] = {"test_perf_analyzer", "-m", "my_model"};
     int argc = 3;
-    PAParamsPtr act = parser.parse(argc, argv);
+    char* argv[argc] = {app_name, "-m", model_name};
 
-    PAParamsPtr exp{new PerfAnalyzerParameters()};
-    exp->model_name = "should fail";
+    PAParamsPtr act;
+    REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+    REQUIRE(!parser.usage_called());
+
     CHECK_PARAMS(act, exp);
+    optind = 1;
+  }
+
+  SUBCASE("Option : --streaming")
+  {
+    SUBCASE("streaming option - without model")
+    {
+      int argc = 2;
+      char* argv[argc] = {app_name, "--streaming"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      REQUIRE(parser.usage_called());
+      CHECK_STRING(
+          "Usage Message", parser.get_usage_message(),
+          "streaming is only allowed with gRPC protocol");
+
+      exp->model_name = "";
+      exp->streaming = true;
+      // exp->max_threads = 16;
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+
+    SUBCASE("with model")
+    {
+      int argc = 4;
+      char* argv[argc] = {app_name, "-m", model_name, "--streaming"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      REQUIRE(parser.usage_called());
+
+      // NOTE: This is not an informative error message, how do I specify a gRPC
+      // protocol? Error ouput should list missing params.
+      //
+      CHECK_STRING(
+          "Usage Message", parser.get_usage_message(),
+          "streaming is only allowed with gRPC protocol");
+
+      exp->streaming = true;
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+
+    SUBCASE("with model last")
+    {
+      int argc = 4;
+      char* argv[argc] = {app_name, "--streaming", "-m", model_name};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+
+      REQUIRE(parser.usage_called());
+      CHECK_STRING(
+          "Usage Message", parser.get_usage_message(),
+          "streaming is only allowed with gRPC protocol");
+
+      exp->streaming = true;
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+  }
+
+  SUBCASE("Option : --max-threads")
+  {
+    SUBCASE("set to 1")
+    {
+      int argc = 5;
+      char* argv[argc] = {app_name, "-m", model_name, "--max-threads", "1"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      REQUIRE(!parser.usage_called());
+
+      exp->max_threads = 1;
+      exp->max_threads_specified = true;
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+
+    SUBCASE("set to max")
+    {
+      int argc = 5;
+      char* argv[argc] = {app_name, "-m", model_name, "--max-threads", "65535"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      REQUIRE(!parser.usage_called());
+
+      exp->max_threads = 65535;
+      exp->max_threads_specified = true;
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
   }
 }
-
 }}  // namespace triton::perfanalyzer
