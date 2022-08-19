@@ -475,7 +475,8 @@ TritonLoader::ModelMetadata(rapidjson::Document* model_metadata)
 }
 
 Error
-TritonLoader::ModelConfig(rapidjson::Document* model_config)
+TritonLoader::ModelConfig(rapidjson::Document* model_config, const std::string& model_name,
+    const std::string& model_version)
 {
   if (!ModelIsLoaded() || !ServerIsReady()) {
     return Error("Model is not loaded and/or server is not ready");
@@ -484,7 +485,7 @@ TritonLoader::ModelConfig(rapidjson::Document* model_config)
   uint32_t config_version = 1;
   RETURN_IF_TRITONSERVER_ERROR(
       GetSingleton()->model_config_fn_(
-          (GetSingleton()->server_).get(), GetSingleton()->model_name_.c_str(),
+          (GetSingleton()->server_).get(), model_name.c_str(),
           GetSingleton()->model_version_, config_version,
           &model_config_message),
       "unable to get model config message");
