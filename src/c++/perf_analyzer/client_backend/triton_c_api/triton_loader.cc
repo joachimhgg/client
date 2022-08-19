@@ -935,7 +935,7 @@ TritonLoader::Infer(
     // intentionally not using the return value from Clean up here
     // it is captured to avoid warnings but at this point, the error from the
     // tritonserver (completed_response_err) is more important to bubble up
-    Error val = CleanUp(completed_response, allocator);
+    Error val = CleanUp(completed_response, allocator, irequest);
     RETURN_IF_TRITONSERVER_ERROR(
         completed_response_err, "request failure in triton server");
   }
@@ -954,14 +954,18 @@ TritonLoader::Infer(
       "Failed to get request id");
   std::string id(cid);
   InferResult::Create(result, err, id);
-  return CleanUp(completed_response, allocator);
+  // clean up
+  return CleanUp(completed_response, allocator, irequest);
 }
 
 Error
 TritonLoader::CleanUp(
     TRITONSERVER_InferenceResponse* completed_response,
-    TRITONSERVER_ResponseAllocator* allocator)
+    TRITONSERVER_ResponseAllocator* allocator, TRITONSERVER_InferenceRequest* irequest)
 {
+  RETURN_IF_TRITONSERVER_ERROR(
+      GetSingleton()->request_delete_fn_(irequest),
+      "deleting inference request");
   TRITONSERVER_Error* response_err =
       GetSingleton()->inference_response_delete_fn_(completed_response);
   TRITONSERVER_Error* allocator_err =
@@ -1021,7 +1025,7 @@ TritonLoader::InitializeRequest(
     if (options.sequence_start_) {
       flags |= TRITONSERVER_REQUEST_FLAG_SEQUENCE_START;
     }
-    if (options.sequence_start_) {
+    if (options.sequence_end_) {
       flags |= TRITONSERVER_REQUEST_FLAG_SEQUENCE_END;
     }
     RETURN_IF_TRITONSERVER_ERROR(

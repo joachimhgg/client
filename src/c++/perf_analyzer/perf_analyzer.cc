@@ -863,7 +863,7 @@ PerfAnalyzer::Run(int argc, char** argv)
 
   // C Api backend required info
   const std::string DEFAULT_MEMORY_TYPE = "system";
-  std::string triton_server_path;
+  std::string triton_server_path = "/opt/tritonserver";
   std::string model_repository_path;
   std::string memory_type = DEFAULT_MEMORY_TYPE;  // currently not used
 
@@ -1604,8 +1604,6 @@ PerfAnalyzer::Run(int argc, char** argv)
     max_threads = 16;
   }
   if (kind == cb::BackendKind::TRITON_C_API) {
-    std::cout << " USING C API: only default functionalities supported "
-              << std::endl;
     if (!target_concurrency) {
       std::cerr << "Only target concurrency is supported by C API" << std::endl;
       return pa::GENERIC_ERROR;
@@ -1622,7 +1620,7 @@ PerfAnalyzer::Run(int argc, char** argv)
           << " memory type:" << memory_type << std::endl;
       return pa::GENERIC_ERROR;
     } else if (async) {
-      std::cerr << "Async API not yet supported by C API" << std::endl;
+      std::cerr << "Async mode is not supported by C-API service kind." << std::endl;
       return pa::GENERIC_ERROR;
     }
     protocol = cb::ProtocolType::UNKNOWN;
@@ -1904,7 +1902,7 @@ PerfAnalyzer::Run(int argc, char** argv)
     // In the case of early_exit, the thread does not return and continues to
     // report the summary
     if (!pa::early_exit) {
-      return err.Err();
+      return 1;
     }
   }
   if (summary.size()) {
