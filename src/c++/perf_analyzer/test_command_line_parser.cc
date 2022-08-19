@@ -91,8 +91,34 @@ TEST_CASE("Testing PerfAnalyzerParameters")
   CHECK(params->start_sequence_id == 1);
   CHECK(params->sequence_id_range == UINT32_MAX);
 
-  // Come back to this!
-  // CHECK(params->ssl_options;  // gRPC and HTTP SSL options
+  CHECK_STRING(
+      "ssl_grpc_certificate_chain_file",
+      params->ssl_options.ssl_grpc_certificate_chain_file, "");
+  CHECK_STRING(
+      "ssl_grpc_private_key_file",
+      params->ssl_options.ssl_grpc_private_key_file, "");
+  CHECK_STRING(
+      "ssl_grpc_root_certifications_file",
+      params->ssl_options.ssl_grpc_root_certifications_file, "");
+  CHECK(params->ssl_options.ssl_grpc_use_ssl == false);
+  CHECK_STRING(
+      "ssl_https_ca_certificates_file",
+      params->ssl_options.ssl_https_ca_certificates_file, "");
+  CHECK_STRING(
+      "ssl_https_client_certificate_file",
+      params->ssl_options.ssl_https_client_certificate_file, "");
+  CHECK_STRING(
+      "ssl_https_client_certificate_type",
+      params->ssl_options.ssl_https_client_certificate_type, "");
+  CHECK_STRING(
+      "ssl_https_private_key_file",
+      params->ssl_options.ssl_https_private_key_file, "");
+  CHECK_STRING(
+      "ssl_https_private_key_type",
+      params->ssl_options.ssl_https_private_key_type, "");
+  CHECK(params->ssl_options.ssl_https_verify_host == 0);
+  CHECK(params->ssl_options.ssl_https_verify_peer == 0);
+
 
   CHECK(params->verbose_csv == false);
   CHECK(params->enable_mpi == false);
