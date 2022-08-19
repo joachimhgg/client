@@ -110,7 +110,7 @@ class TritonLoader : public tc::InferenceServerClient {
 
   static Error CleanUp(
     TRITONSERVER_InferenceResponse* completed_response,
-    TRITONSERVER_ResponseAllocator* allocator, TRITONSERVER_InferenceRequest* irequest);
+    TRITONSERVER_ResponseAllocator* allocator);
 
   static Error ModelInferenceStatistics(
       const std::string& model_name, const std::string& model_version,
