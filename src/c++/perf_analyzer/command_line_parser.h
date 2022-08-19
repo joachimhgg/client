@@ -37,6 +37,8 @@
 
 namespace triton { namespace perfanalyzer {
 
+enum SEARCH_RANGE { kSTART = 0, kEND = 1, kSTEP = 2 };
+
 // Perf Analyzer command line parameters.
 // PAParams are used to initialize PerfAnalyzer and track configuration
 //

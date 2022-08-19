@@ -170,95 +170,14 @@
 //
 class PerfAnalyzer {
  public:
-  PerfAnalyzer(int argc, char* argv[]);
+  PerfAnalyzer(pa::PAParamsPtr params);
   virtual ~PerfAnalyzer(){};
 
   // Main runner function for Perf Analyzer.
   void run();
 
  private:
-  int argc_;
-  char** argv_;
-
-  //
-  // Command line options
-  //
-  cb::BackendKind kind{cb::BackendKind::TRITON};        // rm
-  bool verbose = false;                                 // rm
-  bool extra_verbose = false;                           // rm
-  bool streaming = false;                               // rm
-  size_t max_threads = 4;                               // rm
-  size_t sequence_length = 20;                          // rm
-  int32_t percentile = -1;                              // rm
-  uint64_t latency_threshold_ms = pa::NO_LIMIT;         // rm
-  int32_t batch_size = 1;                               // rm
-  bool using_batch_size = false;                        // rm
-  uint64_t concurrency_range[3] = {1, 1, 1};            // rm
-  double request_rate_range[3] = {1.0, 1.0, 1.0};       // rm
-  double stability_threshold = 0.1;                     // rm
-  uint64_t measurement_window_ms = 5000;                // rm
-  size_t max_trials = 10;                               // rm
-  std::string model_name;                               // rm
-  std::string model_version;                            // rm
-  std::string model_signature_name{"serving_default"};  // rm
-  std::string url{"localhost:8000"};                    // rm
-  std::string filename{""};                             // rm
-  pa::MeasurementMode measurement_mode =
-      pa::MeasurementMode::TIME_WINDOWS;                         // rm
-  uint64_t measurement_request_count = 50;                       // rm
-  cb::ProtocolType protocol = cb::ProtocolType::HTTP;            // rm
-  std::shared_ptr<cb::Headers> http_headers{new cb::Headers()};  // rm
-  cb::GrpcCompressionAlgorithm compression_algorithm =
-      cb::GrpcCompressionAlgorithm::COMPRESS_NONE;                     // rm
-  pa::SharedMemoryType shared_memory_type = pa::NO_SHARED_MEMORY;      // rm
-  size_t output_shm_size = 100 * 1024;                                 // rm
-  std::unordered_map<std::string, std::vector<int64_t>> input_shapes;  // rm
-  size_t string_length = 128;                                          // rm
-  std::string string_data;                                             // rm
-  std::vector<std::string> user_data;                                  // rm
-  bool zero_input = false;                                             // rm
-  int32_t concurrent_request_count = 1;                                // rm
-  size_t max_concurrency = 0;                                          // rm
-  uint32_t num_of_sequences = 4;                                       // rm
-  uint64_t start_sequence_id = 1;                                      // rm
-  uint64_t sequence_id_range = UINT32_MAX;                             // rm
-  bool dynamic_concurrency_mode = false;                               // rm
-  bool async = false;                                                  // rm
-  bool forced_sync = false;                                            // rm
-
-  bool using_concurrency_range = false;                                // rm
-  bool using_request_rate_range = false;                               // rm
-  bool using_custom_intervals = false;                                 // rm
-  bool using_grpc_compression = false;                                 // rm
-  bool target_concurrency = false;                                     // rm
-  pa::SearchMode search_mode = pa::SearchMode::LINEAR;                 // rm
-  pa::Distribution request_distribution = pa::Distribution::CONSTANT;  // rm
-  std::string request_intervals_file{""};                              // rm
-
-  // Required for detecting the use of conflicting options
-  bool using_old_options = false;      // rm
-  bool url_specified = false;          // rm
-  bool max_threads_specified = false;  // rm
-
-  // C Api backend required info
-  const std::string DEFAULT_MEMORY_TYPE = "system";
-  std::string triton_server_path;                 // rm
-  std::string model_repository_path;              // rm
-  std::string memory_type = DEFAULT_MEMORY_TYPE;  // rm
-
-  // gRPC and HTTP SSL options
-  cb::SslOptionsBase ssl_options;  // rm
-
-  // Trace options
-  std::map<std::string, std::vector<std::string>> trace_options;  // rm
-
-  // Verbose csv option for including additional information
-  bool verbose_csv = false;  // rm
-
-  // Enable MPI option for using MPI functionality with multi-model mode.
-  bool enable_mpi = false;                                      // rm
-  std::shared_ptr<triton::perfanalyzer::MPIDriver> mpi_driver;  // rm
-
+  pa::PAParamsPtr params_;
   std::unique_ptr<pa::InferenceProfiler> profiler;
   std::unique_ptr<cb::ClientBackend> backend;
   std::shared_ptr<pa::ModelParser> parser;
@@ -270,9 +189,6 @@ class PerfAnalyzer {
 
   // Parse the options out of the command line argument
   //
-  void parse_command_line();
-  void intialize_options();
-  void verify_options();
   void create_analyzer_objects();
   void prerun_report();
   void profile();

@@ -90,7 +90,6 @@ TEST_CASE("Testing PerfAnalyzerParameters")
   CHECK_STRING("model_repository_path", params->model_repository_path, "");
   CHECK(params->start_sequence_id == 1);
   CHECK(params->sequence_id_range == UINT32_MAX);
-
   CHECK_STRING(
       "ssl_grpc_certificate_chain_file",
       params->ssl_options.ssl_grpc_certificate_chain_file, "");
@@ -116,10 +115,8 @@ TEST_CASE("Testing PerfAnalyzerParameters")
   CHECK_STRING(
       "ssl_https_private_key_type",
       params->ssl_options.ssl_https_private_key_type, "");
-  CHECK(params->ssl_options.ssl_https_verify_host == 0);
-  CHECK(params->ssl_options.ssl_https_verify_peer == 0);
-
-
+  CHECK(params->ssl_options.ssl_https_verify_host == 2);
+  CHECK(params->ssl_options.ssl_https_verify_peer == 1);
   CHECK(params->verbose_csv == false);
   CHECK(params->enable_mpi == false);
   CHECK(params->trace_options.size() == 0);

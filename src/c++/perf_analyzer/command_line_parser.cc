@@ -37,8 +37,6 @@
 
 namespace triton { namespace perfanalyzer {
 
-enum SEARCH_RANGE { kSTART = 0, kEND = 1, kSTEP = 2 };
-
 PAParamsPtr
 CLParser::parse(int argc, char** argv)
 {
