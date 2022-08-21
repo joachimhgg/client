@@ -106,6 +106,11 @@ class TritonCApiClientBackend : public ClientBackend {
       const std::string& model_name = "",
       const std::string& model_version = "") override;
 
+  /// See ClientBackend::RegisterCudaSharedMemory
+  Error RegisterCudaSharedMemory(
+      const std::string& name, const cudaIpcMemHandle_t& handle,
+      const size_t byte_size) override;
+
  private:
   TritonCApiClientBackend() : ClientBackend(BackendKind::TRITON_C_API) {}
   void ParseInferInputToTriton(
@@ -132,14 +137,19 @@ class TritonCApiInferInput : public InferInput {
   static Error Create(
       InferInput** infer_input, const std::string& name,
       const std::vector<int64_t>& dims, const std::string& datatype);
+
   /// Returns the raw InferInput object required by triton client library.
   tc::InferInput* Get() const { return input_.get(); }
+
   /// See InferInput::Shape()
   const std::vector<int64_t>& Shape() const override;
+
   /// See InferInput::SetShape()
   Error SetShape(const std::vector<int64_t>& shape) override;
+
   /// See InferInput::Reset()
   Error Reset() override;
+
   /// See InferInput::AppendRaw()
   Error AppendRaw(const uint8_t* input, size_t input_byte_size) override;
 

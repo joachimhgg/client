@@ -140,6 +140,12 @@ TritonCApiClientBackend::ModelInferenceStatistics(
   return Error::Success;
 }
 
+Error
+TritonCApiClientBackend::RegisterCudaSharedMemory(const std::string& name, const cudaIpcMemHandle_t& handle, const size_t byte_size)
+{
+  void* dev_ptr;
+}
+
 void
 TritonCApiClientBackend::ParseInferInputToTriton(
     const std::vector<InferInput*>& inputs,

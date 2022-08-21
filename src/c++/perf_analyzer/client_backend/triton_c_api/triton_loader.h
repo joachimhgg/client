@@ -25,6 +25,8 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #pragma once
 
+#include <rapidjson/document.h>
+#include <rapidjson/error/en.h>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -33,9 +35,6 @@
 #include "common.h"
 #include "shared_library.h"
 #include "triton/core/tritonserver.h"
-
-#include <rapidjson/document.h>
-#include <rapidjson/error/en.h>
 
 // If TRITONSERVER error is non-OK, return the corresponding status.
 #define RETURN_IF_TRITONSERVER_ERROR(E, MSG)                                \
@@ -97,8 +96,9 @@ class TritonLoader : public tc::InferenceServerClient {
 
   static Error ModelMetadata(rapidjson::Document* model_metadata);
 
-  static Error ModelConfig(rapidjson::Document* model_config, const std::string& model_name,
-    const std::string& model_version);
+  static Error ModelConfig(
+      rapidjson::Document* model_config, const std::string& model_name,
+      const std::string& model_version);
 
   static Error ServerMetaData(rapidjson::Document* server_metadata);
 
@@ -109,8 +109,8 @@ class TritonLoader : public tc::InferenceServerClient {
       InferResult** result);
 
   static Error CleanUp(
-    TRITONSERVER_InferenceResponse* completed_response,
-    TRITONSERVER_ResponseAllocator* allocator);
+      TRITONSERVER_InferenceResponse* completed_response,
+      TRITONSERVER_ResponseAllocator* allocator);
 
   static Error ModelInferenceStatistics(
       const std::string& model_name, const std::string& model_version,

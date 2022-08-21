@@ -1620,7 +1620,7 @@ PerfAnalyzer::Run(int argc, char** argv)
           << " memory type:" << memory_type << std::endl;
       return pa::GENERIC_ERROR;
     } else if (async) {
-      std::cerr << "Async mode is not supported by C-API service kind." << std::endl;
+      std::cerr << "Async API not yet supported by C API" << std::endl;
       return pa::GENERIC_ERROR;
     }
     protocol = cb::ProtocolType::UNKNOWN;
@@ -1902,7 +1902,7 @@ PerfAnalyzer::Run(int argc, char** argv)
     // In the case of early_exit, the thread does not return and continues to
     // report the summary
     if (!pa::early_exit) {
-      return 1;
+      return err.Err();
     }
   }
   if (summary.size()) {

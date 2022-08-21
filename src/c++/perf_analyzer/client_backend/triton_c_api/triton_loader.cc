@@ -915,7 +915,7 @@ TritonLoader::Infer(
 
   RETURN_IF_ERROR(GetSingleton()->InitializeRequest(options, outputs, &allocator, &irequest));
   ScopedDefer error_handler([&error, completed_response, allocator]{
-    Error val = CleanUp(completed_response, allocator);
+    error = CleanUp(completed_response, allocator);
   });
   RETURN_IF_ERROR(GetSingleton()->AddInputs(inputs, irequest));
   RETURN_IF_ERROR(GetSingleton()->AddOutputs(outputs, irequest));
@@ -966,7 +966,7 @@ TritonLoader::CleanUp(
     TRITONSERVER_InferenceResponse* completed_response,
     TRITONSERVER_ResponseAllocator* allocator)
 {
-  TRITONSERVER_Error* response_err;
+  TRITONSERVER_Error* response_err = nullptr;
   if (completed_response != nullptr){
     response_err =
         GetSingleton()->inference_response_delete_fn_(completed_response);
