@@ -63,7 +63,10 @@ CHECK_PARAMS(PAParamsPtr act, PAParamsPtr exp)
   CHECK(act->max_threads_specified == exp->max_threads_specified);
   CHECK(act->sequence_length == exp->sequence_length);
   CHECK(act->percentile == exp->percentile);
-  CHECK(act->user_data.size() == exp->user_data.size());
+  REQUIRE(act->user_data.size() == exp->user_data.size());
+  for (size_t i = 0; i < act->user_data.size(); i++) {
+    CHECK_STRING(act->user_data[i], exp->user_data[i]);
+  }
   CHECK(act->input_shapes.size() == exp->input_shapes.size());
   CHECK(act->measurement_window_ms == exp->measurement_window_ms);
   CHECK(act->using_concurrency_range == exp->using_concurrency_range);
@@ -400,6 +403,138 @@ TEST_CASE("Testing Command Line Parser")
       CHECK_PARAMS(act, exp);
       optind = 1;
     }
+
+    SUBCASE("missing value")
+    {
+      int argc = 4;
+      char* argv[argc] = {app_name, "-m", model_name, "--max-threads"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      REQUIRE(parser.usage_called());
+
+      // NOTE: Empty message is not helpful
+      //
+      CHECK_STRING("Usage Message", parser.get_usage_message(), "");
+
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+
+    SUBCASE("bad value")
+    {
+      int argc = 4;
+      char* argv[argc] = {app_name, "-m", model_name, "--max-threads", "bad"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      REQUIRE(parser.usage_called());
+
+      // NOTE: Empty message is not helpful
+      //
+      CHECK_STRING("Usage Message", parser.get_usage_message(), "");
+
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+  }
+
+  SUBCASE("Option : --sequence-length")
+  {
+    SUBCASE("set to 2000")
+    {
+      int argc = 5;
+      char* argv[argc] = {
+          app_name, "-m", model_name, "--sequence-length", "2000"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(!parser.usage_called());
+
+      exp->sequence_length = 2000;
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+  }
+
+  SUBCASE("Option : --percentile")
+  {
+    SUBCASE("set to 25")
+    {
+      int argc = 5;
+      char* argv[argc] = {app_name, "-m", model_name, "--percentile", "25"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(!parser.usage_called());
+
+      exp->percentile = 25;
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+
+    SUBCASE("set to 225 - overflow check")
+    {
+      int argc = 5;
+      char* argv[argc] = {app_name, "-m", model_name, "--percentile", "225"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(parser.usage_called());
+      CHECK_STRING(
+          "Usage Message", parser.get_usage_message(),
+          "percentile must be -1 for not reporting or in range (0, 100)");
+
+      exp->percentile = 225;
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+
+    SUBCASE("set to -1 - use average latency")
+    {
+      int argc = 5;
+      char* argv[argc] = {app_name, "-m", model_name, "--percentile", "-1"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(!parser.usage_called());
+
+      exp->percentile = -1;
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+  }
+
+  SUBCASE("Option : --data-directory")
+  {
+    SUBCASE("set to `/usr/data`")
+    {
+      int argc = 5;
+      char* argv[argc] = {
+          app_name, "-m", model_name, "--data-directory", "/usr/data"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(!parser.usage_called());
+
+      exp->user_data.push_back("/usr/data");
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+
+    SUBCASE("call twice")
+    {
+      // QUESTION: Is this the expected behavior? There is not enough details in
+      // in the output. It is marked as deprecated, what does that mean? Is it
+      // used?
+      //
+      int argc = 7;
+      char* argv[argc] = {app_name,           "-m",        model_name,
+                          "--data-directory", "/usr/data", "--data-directory",
+                          "/another/dir"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(!parser.usage_called());
+
+      exp->user_data.push_back("/usr/data");
+      exp->user_data.push_back("/another/dir");
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
   }
 }
+
 }}  // namespace triton::perfanalyzer
