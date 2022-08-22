@@ -68,6 +68,18 @@ CHECK_PARAMS(PAParamsPtr act, PAParamsPtr exp)
     CHECK_STRING(act->user_data[i], exp->user_data[i]);
   }
   CHECK(act->input_shapes.size() == exp->input_shapes.size());
+  for (auto act_shape : act->input_shapes) {
+    auto exp_shape = exp->input_shapes.find(act_shape.first);
+    REQUIRE_MESSAGE(
+        exp_shape != exp->input_shapes.end(),
+        "Unexpected input_shape: ", act_shape.first);
+    REQUIRE(act_shape.second.size() == exp_shape->second.size());
+    for (size_t i = 0; i < act_shape.second.size(); i++) {
+      CHECK_MESSAGE(
+          act_shape.second[i] == exp_shape->second[i],
+          "Unexpected shape value for: ", act_shape.first, "[", i, "]");
+    }
+  }
   CHECK(act->measurement_window_ms == exp->measurement_window_ms);
   CHECK(act->using_concurrency_range == exp->using_concurrency_range);
   CHECK(act->concurrency_range[0] == exp->concurrency_range[0]);
@@ -415,6 +427,9 @@ TEST_CASE("Testing Command Line Parser")
       // NOTE: Empty message is not helpful
       //
       CHECK_STRING("Usage Message", parser.get_usage_message(), "");
+      // BUG: Dumping string "option '--max-threads' requires an argument"
+      // directly to std::out, instead of through usage()
+      //
 
       CHECK_PARAMS(act, exp);
       optind = 1;
@@ -431,6 +446,9 @@ TEST_CASE("Testing Command Line Parser")
       // NOTE: Empty message is not helpful
       //
       CHECK_STRING("Usage Message", parser.get_usage_message(), "");
+      // BUG: Dumping string "option '--max-threads' requires an argument"
+      // directly to std::out, instead of through usage()
+      //
 
       CHECK_PARAMS(act, exp);
       optind = 1;
@@ -535,6 +553,501 @@ TEST_CASE("Testing Command Line Parser")
       optind = 1;
     }
   }
-}
 
+  SUBCASE("Option : --shape")
+  {
+    SUBCASE("expected input, single shape")
+    {
+      int argc = 5;
+      char* argv[argc] = {
+          app_name, "-m", model_name, "--shape", "input_name:1,2,3"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(!parser.usage_called());
+
+      exp->input_shapes.emplace(
+          std::string("input_name"), std::vector<int64_t>{1, 2, 3});
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+
+    SUBCASE("expected input, multiple shapes")
+    {
+      int argc = 9;
+      char* argv[argc] = {
+          app_name,
+          "-m",
+          model_name,
+          "--shape",
+          "input_name:1,2,3",
+          "--shape",
+          "alpha:10,24",
+          "--shape",
+          "beta:10,200,34,15,9000"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(!parser.usage_called());
+
+      exp->input_shapes.emplace(
+          std::string("input_name"), std::vector<int64_t>{1, 2, 3});
+      exp->input_shapes.emplace(
+          std::string("alpha"), std::vector<int64_t>{10, 24});
+      exp->input_shapes.emplace(
+          std::string("beta"), std::vector<int64_t>{10, 200, 34, 15, 9000});
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+
+    SUBCASE("using negative dims")
+    {
+      int argc = 5;
+      char* argv[argc] = {
+          app_name, "-m", model_name, "--shape", "input_name:-1,2,3"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(parser.usage_called());
+      CHECK_STRING(
+          "Usage Message", parser.get_usage_message(),
+          "input shape must be > 0");
+
+      exp->input_shapes.emplace(
+          std::string("input_name"), std::vector<int64_t>{-1, 2, 3});
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+
+    SUBCASE("equals sign, not colon")
+    {
+      int argc = 5;
+      char* argv[argc] = {
+          app_name, "-m", model_name, "--shape", "input_name=-1,2,3"};
+
+      // BUG this should call usages with the message
+      // "failed to parse input shape. There must be a colon after input name
+      //
+      CHECK_THROWS_WITH(
+          act = parser.parse(argc, argv),
+          "basic_string::substr: __pos (which is 18) > this->size() (which is "
+          "17)");
+
+      optind = 1;
+    }
+
+    SUBCASE("missing shape")
+    {
+      int argc = 5;
+      char* argv[argc] = {app_name, "-m", model_name, "--shape", "input_name"};
+
+      // BUG this should call usages with the message
+      // "failed to parse input shape. There must be a colon after input name
+      //
+      CHECK_THROWS_WITH(
+          act = parser.parse(argc, argv),
+          "basic_string::substr: __pos (which is 11) > this->size() (which is "
+          "10)");
+
+      optind = 1;
+    }
+
+    SUBCASE("missing colon")
+    {
+      int argc = 5;
+      char* argv[argc] = {
+          app_name, "-m", model_name, "--shape", "input_name1,2,3"};
+
+      // BUG this should call usages with the message
+      // "failed to parse input shape. There must be a colon after input name
+      //
+      CHECK_THROWS_WITH(
+          act = parser.parse(argc, argv),
+          "basic_string::substr: __pos (which is 16) > this->size() (which is "
+          "15)");
+
+      optind = 1;
+    }
+
+    SUBCASE("bad shapes - a,b,c")
+    {
+      int argc = 5;
+      char* argv[argc] = {
+          app_name, "-m", model_name, "--shape", "input_name:a,b,c"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(parser.usage_called());
+      CHECK_STRING(
+          "Usage Message", parser.get_usage_message(),
+          "failed to parse input shape: input_name:a,b,c");
+
+      exp->input_shapes.emplace(
+          std::string("input_name"), std::vector<int64_t>{});
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+
+    SUBCASE("bad shapes - [1,2,3]")
+    {
+      int argc = 5;
+      char* argv[argc] = {
+          app_name, "-m", model_name, "--shape", "input_name:[1,2,3]"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(parser.usage_called());
+      CHECK_STRING(
+          "Usage Message", parser.get_usage_message(),
+          "failed to parse input shape: input_name:[1,2,3]");
+
+      exp->input_shapes.emplace(
+          std::string("input_name"), std::vector<int64_t>{});
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+  }
+
+  SUBCASE("Option : --measurement-interval")
+  {
+    SUBCASE("set to 500")
+    {
+      int argc = 5;
+      char* argv[argc] = {
+          app_name, "-m", model_name, "--measurement-interval", "500"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(!parser.usage_called());
+
+      exp->measurement_window_ms = 500;
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+
+    SUBCASE("set to -200")
+    {
+      int argc = 5;
+      char* argv[argc] = {
+          app_name, "-m", model_name, "--measurement-interval", "-200"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(!parser.usage_called());
+
+      // BUG: may want to actually error out here, and not just use the unsigned
+      // conversion. This will result in unexpected behavior. The actual value
+      // becomes 18446744073709551416ULL, which is not what you would want.
+      //
+      exp->measurement_window_ms = -200;
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+
+    SUBCASE("set to non-numeric value")
+    {
+      int argc = 5;
+      char* argv[argc] = {
+          app_name, "-m", model_name, "--measurement-interval", "foobar"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(parser.usage_called());
+      CHECK_STRING(
+          "Usage Message", parser.get_usage_message(),
+          "measurement window must be > 0 in msec");
+
+      exp->measurement_window_ms = 0;
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+  }
+
+  // Short hand version of --measurement-interval, all test should be the same
+  //
+  SUBCASE("Option : -p")
+  {
+    SUBCASE("set to 500")
+    {
+      int argc = 5;
+      char* argv[argc] = {app_name, "-m", model_name, "-p", "500"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(!parser.usage_called());
+
+      exp->measurement_window_ms = 500;
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+
+    SUBCASE("set to -200")
+    {
+      int argc = 5;
+      char* argv[argc] = {app_name, "-m", model_name, "-p", "-200"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(!parser.usage_called());
+
+      // BUG: may want to actually error out here, and not just use the
+      // unsigned conversion. This will result in unexpected behavior. The
+      // actual value becomes 18446744073709551416ULL, which is not what you
+      // would want.
+      //
+      exp->measurement_window_ms = -200;
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+
+    SUBCASE("set to non-numeric value")
+    {
+      int argc = 5;
+      char* argv[argc] = {app_name, "-m", model_name, "-p", "foobar"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(parser.usage_called());
+      CHECK_STRING(
+          "Usage Message", parser.get_usage_message(),
+          "measurement window must be > 0 in msec");
+
+      exp->measurement_window_ms = 0;
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+  }
+
+  SUBCASE("Option : --concurrency-range")
+  {
+    SUBCASE("expected use")
+    {
+      int argc = 5;
+      char* argv[argc] = {
+          app_name, "-m", model_name, "--concurrency-range", "100:400:10"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(!parser.usage_called());
+
+      exp->using_concurrency_range = true;
+      exp->concurrency_range[0] = 100;
+      exp->concurrency_range[1] = 400;
+      exp->concurrency_range[2] = 10;
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+
+    SUBCASE("only two options")
+    {
+      int argc = 5;
+      char* argv[argc] = {
+          app_name, "-m", model_name, "--concurrency-range", "100:400"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(!parser.usage_called());
+
+      exp->using_concurrency_range = true;
+      exp->concurrency_range[0] = 100;
+      exp->concurrency_range[1] = 400;
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+
+    SUBCASE("only one options")
+    {
+      int argc = 5;
+      char* argv[argc] = {
+          app_name, "-m", model_name, "--concurrency-range", "100"};
+
+      // QUESTION: What does this mean? Why pass only one?
+      //
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(!parser.usage_called());
+
+      exp->using_concurrency_range = true;
+      exp->concurrency_range[0] = 100;
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+
+    SUBCASE("no options")
+    {
+      int argc = 4;
+      char* argv[argc] = {app_name, "-m", model_name, "--concurrency-range"};
+
+      REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+      CHECK(parser.usage_called());
+
+      // BUG: Usage message does not contain error. Error statement
+      // "option '--concurrency-range' requires an argument" written directly
+      // to std::out
+      //
+      CHECK_STRING("Usage Message", parser.get_usage_message(), "");
+
+      CHECK_PARAMS(act, exp);
+      optind = 1;
+    }
+  }
+
+  SUBCASE("too many options")
+  {
+    int argc = 5;
+    char* argv[argc] = {
+        app_name, "-m", model_name, "--concurrency-range", "200:100:25:10"};
+
+    REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+    CHECK(parser.usage_called());
+    CHECK_STRING(
+        "Usage Message", parser.get_usage_message(),
+        "option concurrency-range can have maximum of three elements");
+
+    exp->using_concurrency_range = true;
+    exp->concurrency_range[0] = 200;
+    exp->concurrency_range[1] = 100;
+    exp->concurrency_range[2] = 25;
+
+    // BUG: Extra value bleed into next option!
+    exp->latency_threshold_ms = 10;  // <-- Incorrect behavior, should be 0
+    CHECK_PARAMS(act, exp);
+    optind = 1;
+  }
+
+  SUBCASE("even many options")
+  {
+    int argc = 5;
+    char* argv[argc] = {
+        app_name, "-m", model_name, "--concurrency-range",
+        "200:100:25:10:20:30"};
+
+    REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+    CHECK(parser.usage_called());
+    CHECK_STRING(
+        "Usage Message", parser.get_usage_message(),
+        "option concurrency-range can have maximum of three elements");
+
+    exp->using_concurrency_range = true;
+    exp->concurrency_range[0] = 200;
+    exp->concurrency_range[1] = 100;
+    exp->concurrency_range[2] = 25;
+
+    // BUG: Extra value bleed into next option!
+    exp->latency_threshold_ms = 10;  // <-- Incorrect behavior, should be 0
+    exp->max_trials = 30;            // <-- Incorrect behavior, should be 10
+    CHECK_PARAMS(act, exp);
+    optind = 1;
+  }
+
+  SUBCASE("wrong separator")
+  {
+    int argc = 5;
+    char* argv[argc] = {
+        app_name, "-m", model_name, "--concurrency-range", "100,400,10"};
+
+    REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+    CHECK(!parser.usage_called());
+
+    // BUG: Should detect this and through an error. User will enter this and
+    // have no clue why the end and step sizes are not used correctly.
+    //
+
+    exp->using_concurrency_range = true;
+    exp->concurrency_range[0] = 100;
+    CHECK_PARAMS(act, exp);
+    optind = 1;
+  }
+
+  SUBCASE("bad start value")
+  {
+    int argc = 5;
+    char* argv[argc] = {
+        app_name, "-m", model_name, "--concurrency-range", "bad:400:10"};
+
+    REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+    CHECK(parser.usage_called());
+    CHECK_STRING(
+        "Usage Message", parser.get_usage_message(),
+        "failed to parse concurrency range: bad:400:10");
+
+    exp->using_concurrency_range = true;
+    CHECK_PARAMS(act, exp);
+    optind = 1;
+  }
+
+  SUBCASE("bad end value")
+  {
+    int argc = 5;
+    char* argv[argc] = {
+        app_name, "-m", model_name, "--concurrency-range", "100:bad:10"};
+
+    REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+    CHECK(parser.usage_called());
+    CHECK_STRING(
+        "Usage Message", parser.get_usage_message(),
+        "failed to parse concurrency range: 100:bad:10");
+
+    exp->using_concurrency_range = true;
+    exp->concurrency_range[0] = 100;
+    CHECK_PARAMS(act, exp);
+    optind = 1;
+  }
+
+  SUBCASE("bad step value")
+  {
+    int argc = 5;
+    char* argv[argc] = {
+        app_name, "-m", model_name, "--concurrency-range", "100:400:bad"};
+
+    REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+    CHECK(parser.usage_called());
+    CHECK_STRING(
+        "Usage Message", parser.get_usage_message(),
+        "failed to parse concurrency range: 100:400:bad");
+
+    exp->using_concurrency_range = true;
+    exp->concurrency_range[0] = 100;
+    exp->concurrency_range[1] = 400;
+    CHECK_PARAMS(act, exp);
+    optind = 1;
+  }
+
+  SUBCASE("invalid condition - end and latency threshold are 0")
+  {
+    int argc = 7;
+    char* argv[argc] = {app_name,   "-m",
+                        model_name, "--concurrency-range",
+                        "100:0:25", "--latency-threshold",
+                        "0"};
+
+    REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+    CHECK(parser.usage_called());
+    CHECK_STRING(
+        "Usage Message", parser.get_usage_message(),
+        "The end of the search range and the latency limit can not be both 0 "
+        "(or 0.0) simultaneously");
+
+    exp->using_concurrency_range = true;
+    exp->concurrency_range[0] = 100;
+    exp->concurrency_range[1] = 0;
+    exp->concurrency_range[2] = 25;
+    exp->latency_threshold_ms = 0;
+    CHECK_PARAMS(act, exp);
+    optind = 1;
+  }
+
+  // TODO
+  //
+  // SUBCASE("invalid condition - end is 0 for asynchronous sequence models")
+  // {
+  //   int argc = 7;
+  //   char* argv[argc] = {app_name,   "-m",
+  //                       model_name, "--concurrency-range",
+  //                       "100:0:25", "--async",
+  //                       "0"};
+
+  //   REQUIRE_NOTHROW(act = parser.parse(argc, argv));
+  //   CHECK(parser.usage_called());
+  //   CHECK_STRING(
+  //       "Usage Message", parser.get_usage_message(),
+  //       "The end of the search range and the latency limit can not be both 0
+  //       "
+  //       "(or 0.0) simultaneously");
+
+  //   exp->using_concurrency_range = true;
+  //   exp->concurrency_range[0] = 100;
+  //   exp->concurrency_range[1] = 0;
+  //   exp->concurrency_range[2] = 25;
+  //   exp->latency_threshold_ms = 0;
+  //   CHECK_PARAMS(act, exp);
+  //   optind = 1;
+  // }
+}
 }}  // namespace triton::perfanalyzer
