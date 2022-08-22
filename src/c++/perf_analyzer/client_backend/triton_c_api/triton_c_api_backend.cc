@@ -38,21 +38,19 @@ namespace tritoncapi {
 Error
 TritonCApiClientBackend::Create(
     const std::string& triton_server_path,
-    const std::string& model_repository_path, const std::string& memory_type,
+    const std::string& model_repository_path,
     const bool verbose, std::unique_ptr<ClientBackend>* client_backend)
 {
-  if (triton_server_path.empty() || model_repository_path.empty() ||
-      memory_type.empty()) {
+  if (triton_server_path.empty() || model_repository_path.empty()) {
     return Error(std::string(
         "Unable to create Triton C-API client backend. /lib/libtritonserver.so "
         "directory:" +
-        triton_server_path + " model repo:" + model_repository_path +
-        " memory type:" + memory_type));
+        triton_server_path + " model repo:" + model_repository_path));
   }
   std::unique_ptr<TritonCApiClientBackend> triton_client_backend(
       new TritonCApiClientBackend());
   TritonLoader::Create(
-      triton_server_path, model_repository_path, memory_type, verbose);
+      triton_server_path, model_repository_path, verbose);
   *client_backend = std::move(triton_client_backend);
   return Error::Success;
 }
@@ -61,7 +59,7 @@ Error
 TritonCApiClientBackend::ServerExtensions(std::set<std::string>* extensions)
 {
   rapidjson::Document server_metadata_json;
-  RETURN_IF_ERROR(TritonLoader::ServerMetaData(&server_metadata_json));
+  RETURN_IF_ERROR(triton_loader_->ServerMetaData(&server_metadata_json));
   for (const auto& extension : server_metadata_json["extensions"].GetArray()) {
     extensions->insert(
         std::string(extension.GetString(), extension.GetStringLength()));
@@ -74,10 +72,10 @@ TritonCApiClientBackend::ModelMetadata(
     rapidjson::Document* model_metadata, const std::string& model_name,
     const std::string& model_version)
 {
-  if (!TritonLoader::ModelIsLoaded()) {
-    TritonLoader::LoadModel(model_name, model_version);
+  if (!triton_loader_->ModelIsLoaded()) {
+    triton_loader_->LoadModel(model_name, model_version);
   }
-  RETURN_IF_ERROR(TritonLoader::ModelMetadata(model_metadata));
+  RETURN_IF_ERROR(triton_loader_->ModelMetadata(model_metadata));
   return Error::Success;
 }
 
@@ -86,10 +84,11 @@ TritonCApiClientBackend::ModelConfig(
     rapidjson::Document* model_config, const std::string& model_name,
     const std::string& model_version)
 {
-  if (!TritonLoader::ModelIsLoaded()) {
-    TritonLoader::LoadModel(model_name, model_version);
+  if (!triton_loader_->ModelIsLoaded()) {
+    triton_loader_->LoadModel(model_name, model_version);
   }
-  RETURN_IF_ERROR(TritonLoader::ModelConfig(model_config, model_name, model_version));
+  RETURN_IF_ERROR(
+      triton_loader_->ModelConfig(model_config, model_name, model_version));
   return Error::Success;
 }
 
@@ -109,7 +108,7 @@ TritonCApiClientBackend::Infer(
   ParseInferOptionsToTriton(options, &triton_options);
 
   capi::InferResult* triton_result;
-  RETURN_IF_ERROR(TritonLoader::Infer(
+  RETURN_IF_ERROR(triton_loader_->Infer(
       triton_options, triton_inputs, triton_outputs, &triton_result));
 
   *result = new TritonCApiInferResult(triton_result);
@@ -122,7 +121,7 @@ TritonCApiClientBackend::ClientInferStat(InferStat* infer_stat)
 {
   tc::InferStat triton_infer_stat;
 
-  TritonLoader::ClientInferStat(&triton_infer_stat);
+  triton_loader_->ClientInferStat(&triton_infer_stat);
   ParseInferStat(triton_infer_stat, infer_stat);
   return Error::Success;
 }
@@ -133,18 +132,50 @@ TritonCApiClientBackend::ModelInferenceStatistics(
     const std::string& model_name, const std::string& model_version)
 {
   rapidjson::Document infer_stat_json;
-  RETURN_IF_ERROR(TritonLoader::ModelInferenceStatistics(
+  RETURN_IF_ERROR(triton_loader_->ModelInferenceStatistics(
       model_name, model_version, &infer_stat_json));
   ParseStatistics(infer_stat_json, model_stats);
 
   return Error::Success;
 }
 
-Error
-TritonCApiClientBackend::RegisterCudaSharedMemory(const std::string& name, const cudaIpcMemHandle_t& handle, const size_t byte_size)
+Error TritonCApiClientBackend::UnregisterAllSharedMemory()
 {
-  void* dev_ptr;
+  RETURN_IF_ERROR(triton_loader_->UnregisterAllSharedMemory());
+  return Error::Success;
 }
+
+// Error
+// TritonCApiClientBackend::RegisterSystemSharedMemory(
+//       const std::string& name, const std::string& key, const size_t byte_size)
+// {
+//   // RETURN_IF_ERROR(shm_manager_->RegisterSystemSharedMemory(name, key, 0 /* offset */, byte_size));
+//   return Error::Success;
+// }
+
+Error
+TritonCApiClientBackend::RegisterCudaSharedMemory(
+    const std::string& name, const cudaIpcMemHandle_t& handle,
+    const size_t byte_size)
+{
+  // RETURN_IF_ERROR(shm_manager_->RegisterCUDASharedMemory(name, &handle, byte_size, 0 /* device id */));
+  return Error::Success;
+}
+
+// Error
+// TritonCApiClientBackend::CreateSharedMemoryRegion(std::string shm_key, size_t byte_size, int* shm_fd)
+// {
+// }
+
+// Error
+// TritonCApiClientBackend::MapSharedMemory(int shm_fd, size_t offset, size_t byte_size, void** shm_addr)
+//       {
+
+//       }
+
+//   Error TritonCApiClientBackend::CloseSharedMemory(int shm_fd){}
+//   Error TritonCApiClientBackend::UnlinkSharedMemoryRegion(std::string shm_key);
+//   Error TritonCApiClientBackend::UnmapSharedMemory(void* shm_addr, size_t byte_size);
 
 void
 TritonCApiClientBackend::ParseInferInputToTriton(
@@ -289,6 +320,13 @@ Error
 TritonCApiInferInput::AppendRaw(const uint8_t* input, size_t input_byte_size)
 {
   RETURN_IF_TRITON_ERROR(input_->AppendRaw(input, input_byte_size));
+  return Error::Success;
+}
+
+Error
+TritonCApiInferInput::SetSharedMemory(const std::string& name, size_t byte_size, size_t offset)
+{
+  RETURN_IF_TRITON_ERROR(input_->SetSharedMemory(name, byte_size, offset));
   return Error::Success;
 }
 

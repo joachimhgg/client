@@ -865,7 +865,6 @@ PerfAnalyzer::Run(int argc, char** argv)
   const std::string DEFAULT_MEMORY_TYPE = "system";
   std::string triton_server_path = "/opt/tritonserver";
   std::string model_repository_path;
-  std::string memory_type = DEFAULT_MEMORY_TYPE;  // currently not used
 
   // gRPC and HTTP SSL options
   cb::SslOptionsBase ssl_options;
@@ -1611,13 +1610,12 @@ PerfAnalyzer::Run(int argc, char** argv)
       std::cerr << "Shared memory not yet supported by C API" << std::endl;
       return pa::GENERIC_ERROR;
     } else if (
-        triton_server_path.empty() || model_repository_path.empty() ||
-        memory_type.empty()) {
+        triton_server_path.empty() || model_repository_path.empty()) {
       std::cerr
           << "Not enough information to create C API. /lib/libtritonserver.so "
              "directory:"
           << triton_server_path << " model repo:" << model_repository_path
-          << " memory type:" << memory_type << std::endl;
+          << std::endl;
       return pa::GENERIC_ERROR;
     } else if (async) {
       std::cerr << "Async API not yet supported by C API" << std::endl;
@@ -1633,7 +1631,7 @@ PerfAnalyzer::Run(int argc, char** argv)
       cb::ClientBackendFactory::Create(
           kind, url, protocol, ssl_options, trace_options,
           compression_algorithm, http_headers, triton_server_path,
-          model_repository_path, memory_type, extra_verbose, &factory),
+          model_repository_path, extra_verbose, &factory),
       "failed to create client factory");
 
   std::unique_ptr<cb::ClientBackend> backend;

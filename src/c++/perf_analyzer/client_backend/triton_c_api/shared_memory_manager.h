@@ -29,8 +29,8 @@
 #include <map>
 #include <memory>
 #include <mutex>
-#include "triton/common/triton_json.h"
 #include "triton/core/tritonserver.h"
+#include "../client_backend.h"
 
 #ifdef TRITON_ENABLE_GPU
 #include <cuda_runtime_api.h>
@@ -97,17 +97,6 @@ class SharedMemoryManager {
   Error GetCUDAHandle(
       const std::string& name, cudaIpcMemHandle_t** cuda_mem_handle);
 #endif
-
-  /// Populates the status of active system/CUDA shared memory regions
-  /// in the status JSON. If 'name' is empty then return status of all
-  /// active system/CUDA shared memory regions as specified by 'memory_type'.
-  /// \param name The name of the shared memory block to get the status of.
-  /// \param memory_type The type of memory to get the status of.
-  /// \param shm_status Returns status of active shared memory blocks in JSON.
-  /// \return an Error indicating success or failure.
-  Error GetStatus(
-      const std::string& name, TRITONSERVER_MemoryType memory_type,
-      triton::common::TritonJson::Value* shm_status);
 
   /// Removes the named shared memory block of the specified type from
   /// the manager. Any future attempt to get the details of this block

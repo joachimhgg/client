@@ -147,23 +147,23 @@ SharedMemoryManager::RegisterSystemSharedMemory(
 
   // open and set new shm_fd if new shared memory key
   if (shm_fd == -1) {
-    RETURN_IF_ERR(OpenSharedMemoryRegion(shm_key, &shm_fd));
+    RETURN_IF_ERROR(OpenSharedMemoryRegion(shm_key, &shm_fd));
   }
 
   // Mmap and then close the shared memory descriptor
   Error err_mmap = MapSharedMemory(shm_fd, offset, byte_size, &mapped_addr);
   Error err_close = CloseSharedMemoryRegion(shm_fd);
-  if (err_mmap != nullptr) {
+  if (!err_mmap.IsOk()) {
     return Error(std::string(
                      "failed to register shared memory region '" + name +
-                     "': " + TRITONSERVER_ErrorMessage(err_mmap))
+                     "': " + err_mmap.Message())
                      .c_str());
   }
 
-  if (err_close != nullptr) {
+  if (!err_close.IsOk()) {
     return Error(std::string(
                      "failed to register shared memory region '" + name +
-                     "': " + TRITONSERVER_ErrorMessage(err_close))
+                     "': " + err_close.Message())
                      .c_str());
   }
 
@@ -196,7 +196,7 @@ SharedMemoryManager::RegisterCUDASharedMemory(
 
   // Get CUDA shared memory base address
   Error err = OpenCudaIPCRegion(cuda_shm_handle, &mapped_addr, device_id);
-  if (err != nullptr) {
+  if (!err.IsOk()) {
     return Error(std::string(
         "failed to register CUDA shared memory region '" + name +
         "': " + err.Message()));
@@ -259,73 +259,6 @@ SharedMemoryManager::GetCUDAHandle(
 #endif
 
 Error
-SharedMemoryManager::GetStatus(
-    const std::string& name, TRITONSERVER_MemoryType memory_type,
-    triton::common::TritonJson::Value* shm_status)
-{
-  std::lock_guard<std::mutex> lock(mu_);
-
-  if (name.empty()) {
-    for (const auto& shm_info : shared_memory_map_) {
-      if (shm_info.second->kind_ == memory_type) {
-        triton::common::TritonJson::Value shm_region(
-            *shm_status, triton::common::TritonJson::ValueType::OBJECT);
-        RETURN_IF_ERR(shm_region.AddString(
-            "name", shm_info.first.c_str(), shm_info.first.size()));
-        if (memory_type == TRITONSERVER_MEMORY_CPU) {
-          RETURN_IF_ERR(shm_region.AddString(
-              "key", shm_info.second->shm_key_.c_str(),
-              shm_info.second->shm_key_.size()));
-          RETURN_IF_ERR(shm_region.AddUInt("offset", shm_info.second->offset_));
-        } else {
-          RETURN_IF_ERR(
-              shm_region.AddUInt("device_id", shm_info.second->device_id_));
-        }
-        RETURN_IF_ERR(
-            shm_region.AddUInt("byte_size", shm_info.second->byte_size_));
-        RETURN_IF_ERR(shm_status->Append(std::move(shm_region)));
-      }
-    }
-  } else {
-    auto it = shared_memory_map_.find(name);
-    if (it == shared_memory_map_.end()) {
-      return Error(std::string(
-          "Unable to find system shared memory region: '" + name + "'"));
-    }
-
-    if (it->second->kind_ != memory_type) {
-      if (it->second->kind_ == TRITONSERVER_MEMORY_GPU) {
-        return Error(std::string(
-            "The region named '" + name +
-            "' is registered as CUDA shared "
-            "memory, not system shared memory"));
-      } else {
-        return Error(std::string(
-            "The region named '" + name +
-            "' is registered as system shared "
-            "memory, not CUDA shared memory"));
-      }
-    }
-
-    triton::common::TritonJson::Value shm_region(
-        *shm_status, triton::common::TritonJson::ValueType::OBJECT);
-    RETURN_IF_ERR(shm_region.AddString(
-        "name", it->second->name_.c_str(), it->second->name_.size()));
-    if (memory_type == TRITONSERVER_MEMORY_CPU) {
-      RETURN_IF_ERR(shm_region.AddString(
-          "key", it->second->shm_key_.c_str(), it->second->shm_key_.size()));
-      RETURN_IF_ERR(shm_region.AddUInt("offset", it->second->offset_));
-    } else {
-      RETURN_IF_ERR(shm_region.AddUInt("device_id", it->second->device_id_));
-    }
-    RETURN_IF_ERR(shm_region.AddUInt("byte_size", it->second->byte_size_));
-    RETURN_IF_ERR(shm_status->Append(std::move(shm_region)));
-  }
-
-  return Error::Success;
-}
-
-Error
 SharedMemoryManager::Unregister(
     const std::string& name, TRITONSERVER_MemoryType memory_type)
 {
@@ -348,8 +281,8 @@ SharedMemoryManager::UnregisterAll(TRITONSERVER_MemoryType memory_type)
          it != shared_memory_map_.cend(); it = next_it) {
       ++next_it;
       if (it->second->kind_ == TRITONSERVER_MEMORY_CPU) {
-        TRITONSERVER_Error* err = UnregisterHelper(it->first, memory_type);
-        if (err != nullptr) {
+        Error err = UnregisterHelper(it->first, memory_type);
+        if (!err.IsOk()) {
           unregister_fails.push_back(it->first);
         }
       }
@@ -360,8 +293,8 @@ SharedMemoryManager::UnregisterAll(TRITONSERVER_MemoryType memory_type)
          it != shared_memory_map_.cend(); it = next_it) {
       ++next_it;
       if (it->second->kind_ == TRITONSERVER_MEMORY_GPU) {
-        TRITONSERVER_Error* err = UnregisterHelper(it->first, memory_type);
-        if (err != nullptr) {
+        Error err = UnregisterHelper(it->first, memory_type);
+        if (!err.IsOk()) {
           unregister_fails.push_back(it->first);
         }
       }
@@ -387,7 +320,7 @@ SharedMemoryManager::UnregisterHelper(
   auto it = shared_memory_map_.find(name);
   if (it != shared_memory_map_.end() && it->second->kind_ == memory_type) {
     if (it->second->kind_ == TRITONSERVER_MEMORY_CPU) {
-      RETURN_IF_ERR(
+      RETURN_IF_ERROR(
           UnmapSharedMemory(it->second->mapped_addr_, it->second->byte_size_));
     } else {
 #ifdef TRITON_ENABLE_GPU
