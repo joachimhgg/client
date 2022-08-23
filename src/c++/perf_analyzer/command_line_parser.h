@@ -54,7 +54,7 @@ struct PerfAnalyzerParameters {
   std::unordered_map<std::string, std::vector<int64_t>> input_shapes;
   uint64_t measurement_window_ms = 5000;
   bool using_concurrency_range = false;
-  uint64_t concurrency_range[3] = {1, 1, 1};
+  Range<uint64_t> concurrency_range{1, 1, 1};
   uint64_t latency_threshold_ms = NO_LIMIT;
   double stability_threshold = 0.1;
   size_t max_trials = 10;

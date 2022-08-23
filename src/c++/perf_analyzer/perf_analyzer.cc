@@ -160,8 +160,7 @@ PerfAnalyzer::create_analyzer_objects()
   if (params_->targeting_concurrency()) {
     if ((parser->SchedulerType() == pa::ModelParser::SEQUENCE) ||
         (parser->SchedulerType() == pa::ModelParser::ENSEMBLE_SEQUENCE)) {
-      if (params_->concurrency_range[pa::SEARCH_RANGE::kEND] == pa::NO_LIMIT &&
-          params_->async) {
+      if (params_->concurrency_range.end == pa::NO_LIMIT && params_->async) {
         std::cerr << "The 'end' concurrency can not be 0 for sequence "
                      "models when using asynchronous API."
                   << std::endl;
@@ -169,17 +168,15 @@ PerfAnalyzer::create_analyzer_objects()
       }
     }
     params_->max_concurrency = std::max(
-        params_->concurrency_range[pa::SEARCH_RANGE::kSTART],
-        params_->concurrency_range[pa::SEARCH_RANGE::kEND]);
+        params_->concurrency_range.start, params_->concurrency_range.end);
 
     if (!params_->async) {
-      if (params_->concurrency_range[pa::SEARCH_RANGE::kEND] == pa::NO_LIMIT) {
+      if (params_->concurrency_range.end == pa::NO_LIMIT) {
         std::cerr
             << "WARNING: The maximum attainable concurrency will be limited by "
                "max_threads specification."
             << std::endl;
-        params_->concurrency_range[pa::SEARCH_RANGE::kEND] =
-            params_->max_threads;
+        params_->concurrency_range.end = params_->max_threads;
       } else {
         // As only one synchronous request can be generated from a thread at a
         // time, to maintain the requested concurrency, that many threads need
@@ -191,8 +188,7 @@ PerfAnalyzer::create_analyzer_objects()
               << std::endl;
         }
         params_->max_threads = std::max(
-            params_->concurrency_range[pa::SEARCH_RANGE::kSTART],
-            params_->concurrency_range[pa::SEARCH_RANGE::kEND]);
+            params_->concurrency_range.start, params_->concurrency_range.end);
       }
     }
     if ((params_->sequence_id_range != 0) &&
@@ -287,14 +283,14 @@ PerfAnalyzer::prerun_report()
     std::cout << "  Minimum number of samples in each window: "
               << params_->measurement_request_count << std::endl;
   }
-  if (params_->concurrency_range[pa::SEARCH_RANGE::kEND] != 1) {
+  if (params_->concurrency_range.end != 1) {
     std::cout << "  Latency limit: " << params_->latency_threshold_ms << " msec"
               << std::endl;
-    if (params_->concurrency_range[pa::SEARCH_RANGE::kEND] != pa::NO_LIMIT) {
+    if (params_->concurrency_range.end != pa::NO_LIMIT) {
       std::cout << "  Concurrency limit: "
                 << std::max(
-                       params_->concurrency_range[pa::SEARCH_RANGE::kSTART],
-                       params_->concurrency_range[pa::SEARCH_RANGE::kEND])
+                       params_->concurrency_range.start,
+                       params_->concurrency_range.end)
                 << " concurrent requests" << std::endl;
     }
   }
@@ -350,10 +346,8 @@ PerfAnalyzer::profile()
   cb::Error err;
   if (params_->targeting_concurrency()) {
     err = profiler->Profile<size_t>(
-        params_->concurrency_range[pa::SEARCH_RANGE::kSTART],
-        params_->concurrency_range[pa::SEARCH_RANGE::kEND],
-        params_->concurrency_range[pa::SEARCH_RANGE::kSTEP],
-        params_->search_mode, summary);
+        params_->concurrency_range.start, params_->concurrency_range.end,
+        params_->concurrency_range.step, params_->search_mode, summary);
   } else {
     err = profiler->Profile<double>(
         params_->request_rate_range[pa::SEARCH_RANGE::kSTART],

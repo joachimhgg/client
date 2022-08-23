@@ -82,9 +82,9 @@ CHECK_PARAMS(PAParamsPtr act, PAParamsPtr exp)
   }
   CHECK(act->measurement_window_ms == exp->measurement_window_ms);
   CHECK(act->using_concurrency_range == exp->using_concurrency_range);
-  CHECK(act->concurrency_range[0] == exp->concurrency_range[0]);
-  CHECK(act->concurrency_range[1] == exp->concurrency_range[1]);
-  CHECK(act->concurrency_range[2] == exp->concurrency_range[2]);
+  CHECK(act->concurrency_range.start == exp->concurrency_range.start);
+  CHECK(act->concurrency_range.end == exp->concurrency_range.end);
+  CHECK(act->concurrency_range.step == exp->concurrency_range.step);
   CHECK(act->latency_threshold_ms == exp->latency_threshold_ms);
   CHECK(act->stability_threshold == doctest::Approx(act->stability_threshold));
   CHECK(act->max_trials == exp->max_trials);
@@ -186,9 +186,9 @@ TEST_CASE("Testing PerfAnalyzerParameters")
   CHECK(params->input_shapes.size() == 0);
   CHECK(params->measurement_window_ms == 5000);
   CHECK(params->using_concurrency_range == false);
-  CHECK(params->concurrency_range[0] == 1);
-  CHECK(params->concurrency_range[1] == 1);
-  CHECK(params->concurrency_range[2] == 1);
+  CHECK(params->concurrency_range.start == 1);
+  CHECK(params->concurrency_range.end == 1);
+  CHECK(params->concurrency_range.step == 1);
   CHECK(params->latency_threshold_ms == NO_LIMIT);
   CHECK(params->stability_threshold == doctest::Approx(0.1));
   CHECK(params->max_trials == 10);
@@ -819,9 +819,9 @@ TEST_CASE("Testing Command Line Parser")
       CHECK(!parser.usage_called());
 
       exp->using_concurrency_range = true;
-      exp->concurrency_range[0] = 100;
-      exp->concurrency_range[1] = 400;
-      exp->concurrency_range[2] = 10;
+      exp->concurrency_range.start = 100;
+      exp->concurrency_range.end = 400;
+      exp->concurrency_range.step = 10;
       CHECK_PARAMS(act, exp);
       optind = 1;
     }
@@ -836,8 +836,8 @@ TEST_CASE("Testing Command Line Parser")
       CHECK(!parser.usage_called());
 
       exp->using_concurrency_range = true;
-      exp->concurrency_range[0] = 100;
-      exp->concurrency_range[1] = 400;
+      exp->concurrency_range.start = 100;
+      exp->concurrency_range.end = 400;
       CHECK_PARAMS(act, exp);
       optind = 1;
     }
@@ -854,7 +854,7 @@ TEST_CASE("Testing Command Line Parser")
       CHECK(!parser.usage_called());
 
       exp->using_concurrency_range = true;
-      exp->concurrency_range[0] = 100;
+      exp->concurrency_range.start = 100;
       CHECK_PARAMS(act, exp);
       optind = 1;
     }
@@ -891,17 +891,14 @@ TEST_CASE("Testing Command Line Parser")
         "option concurrency-range can have maximum of three elements");
 
     exp->using_concurrency_range = true;
-    exp->concurrency_range[0] = 200;
-    exp->concurrency_range[1] = 100;
-    exp->concurrency_range[2] = 25;
-
-    // BUG: Extra value bleed into next option!
-    exp->latency_threshold_ms = 10;  // <-- Incorrect behavior, should be 0
+    exp->concurrency_range.start = 200;
+    exp->concurrency_range.end = 100;
+    exp->concurrency_range.step = 25;
     CHECK_PARAMS(act, exp);
     optind = 1;
   }
 
-  SUBCASE("even many options")
+  SUBCASE("way too many options")
   {
     int argc = 5;
     char* argv[argc] = {
@@ -915,13 +912,9 @@ TEST_CASE("Testing Command Line Parser")
         "option concurrency-range can have maximum of three elements");
 
     exp->using_concurrency_range = true;
-    exp->concurrency_range[0] = 200;
-    exp->concurrency_range[1] = 100;
-    exp->concurrency_range[2] = 25;
-
-    // BUG: Extra value bleed into next option!
-    exp->latency_threshold_ms = 10;  // <-- Incorrect behavior, should be 0
-    exp->max_trials = 30;            // <-- Incorrect behavior, should be 10
+    exp->concurrency_range.start = 200;
+    exp->concurrency_range.end = 100;
+    exp->concurrency_range.step = 25;
     CHECK_PARAMS(act, exp);
     optind = 1;
   }
@@ -940,7 +933,7 @@ TEST_CASE("Testing Command Line Parser")
     //
 
     exp->using_concurrency_range = true;
-    exp->concurrency_range[0] = 100;
+    exp->concurrency_range.start = 100;
     CHECK_PARAMS(act, exp);
     optind = 1;
   }
@@ -975,7 +968,7 @@ TEST_CASE("Testing Command Line Parser")
         "failed to parse concurrency range: 100:bad:10");
 
     exp->using_concurrency_range = true;
-    exp->concurrency_range[0] = 100;
+    exp->concurrency_range.start = 100;
     CHECK_PARAMS(act, exp);
     optind = 1;
   }
@@ -993,8 +986,8 @@ TEST_CASE("Testing Command Line Parser")
         "failed to parse concurrency range: 100:400:bad");
 
     exp->using_concurrency_range = true;
-    exp->concurrency_range[0] = 100;
-    exp->concurrency_range[1] = 400;
+    exp->concurrency_range.start = 100;
+    exp->concurrency_range.end = 400;
     CHECK_PARAMS(act, exp);
     optind = 1;
   }
@@ -1015,15 +1008,15 @@ TEST_CASE("Testing Command Line Parser")
         "(or 0.0) simultaneously");
 
     exp->using_concurrency_range = true;
-    exp->concurrency_range[0] = 100;
-    exp->concurrency_range[1] = 0;
-    exp->concurrency_range[2] = 25;
+    exp->concurrency_range.start = 100;
+    exp->concurrency_range.end = 0;
+    exp->concurrency_range.step = 25;
     exp->latency_threshold_ms = 0;
     CHECK_PARAMS(act, exp);
     optind = 1;
   }
 
-  // TODO
+  // TODO figure out how to setup an asynchronous sequence model
   //
   // SUBCASE("invalid condition - end is 0 for asynchronous sequence models")
   // {
@@ -1042,9 +1035,9 @@ TEST_CASE("Testing Command Line Parser")
   //       "(or 0.0) simultaneously");
 
   //   exp->using_concurrency_range = true;
-  //   exp->concurrency_range[0] = 100;
-  //   exp->concurrency_range[1] = 0;
-  //   exp->concurrency_range[2] = 25;
+  //   exp->concurrency_range.start = 100;
+  //   exp->concurrency_range.end = 0;
+  //   exp->concurrency_range.step = 25;
   //   exp->latency_threshold_ms = 0;
   //   CHECK_PARAMS(act, exp);
   //   optind = 1;

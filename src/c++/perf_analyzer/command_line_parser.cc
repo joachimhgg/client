@@ -782,16 +782,26 @@ CLParser::parse_command_line(int argc, char** argv)
                   "option concurrency-range can have maximum of three "
                   "elements");
             }
+            int64_t val;
             if (colon_pos == std::string::npos) {
-              params_->concurrency_range[index] =
-                  std::stoll(arg.substr(pos, colon_pos));
+              val = std::stoll(arg.substr(pos, colon_pos));
               pos = colon_pos;
             } else {
-              params_->concurrency_range[index] =
-                  std::stoll(arg.substr(pos, colon_pos - pos));
+              val = std::stoll(arg.substr(pos, colon_pos - pos));
               pos = colon_pos + 1;
-              index++;
             }
+            switch (index) {
+              case 0:
+                params_->concurrency_range.start = val;
+                break;
+              case 1:
+                params_->concurrency_range.end = val;
+                break;
+              case 2:
+                params_->concurrency_range.step = val;
+                break;
+            }
+            index++;
           }
         }
         catch (const std::invalid_argument& ia) {
@@ -1223,7 +1233,7 @@ CLParser::verify_options()
   if (params_->measurement_request_count <= 0) {
     usage("measurement request count must be > 0");
   }
-  if (params_->concurrency_range[SEARCH_RANGE::kSTART] <= 0 ||
+  if (params_->concurrency_range.start <= 0 ||
       params_->concurrent_request_count < 0) {
     usage("The start of the search range must be > 0");
   }
@@ -1270,10 +1280,9 @@ CLParser::verify_options()
     usage("can not use deprecated options with --concurrency-range");
   } else if (params_->using_old_options) {
     if (params_->dynamic_concurrency_mode) {
-      params_->concurrency_range[SEARCH_RANGE::kEND] = params_->max_concurrency;
+      params_->concurrency_range.end = params_->max_concurrency;
     }
-    params_->concurrency_range[SEARCH_RANGE::kSTART] =
-        params_->concurrent_request_count;
+    params_->concurrency_range.start = params_->concurrent_request_count;
   }
 
   if (params_->using_request_rate_range && params_->using_old_options) {
@@ -1304,12 +1313,12 @@ CLParser::verify_options()
   }
 
   if (params_->using_concurrency_range && params_->mpi_driver->IsMPIRun() &&
-      (params_->concurrency_range[SEARCH_RANGE::kEND] != 1 ||
-       params_->concurrency_range[SEARCH_RANGE::kSTEP] != 1)) {
+      (params_->concurrency_range.end != 1 ||
+       params_->concurrency_range.step != 1)) {
     usage("cannot use concurrency range with multi-model mode");
   }
 
-  if (((params_->concurrency_range[SEARCH_RANGE::kEND] == NO_LIMIT) ||
+  if (((params_->concurrency_range.end == NO_LIMIT) ||
        (params_->request_rate_range[SEARCH_RANGE::kEND] ==
         static_cast<double>(NO_LIMIT))) &&
       (params_->latency_threshold_ms == NO_LIMIT)) {
@@ -1318,7 +1327,7 @@ CLParser::verify_options()
         "(or 0.0) simultaneously");
   }
 
-  if (((params_->concurrency_range[SEARCH_RANGE::kEND] == NO_LIMIT) ||
+  if (((params_->concurrency_range.end == NO_LIMIT) ||
        (params_->request_rate_range[SEARCH_RANGE::kEND] ==
         static_cast<double>(NO_LIMIT))) &&
       (params_->search_mode == SearchMode::BINARY)) {
@@ -1330,8 +1339,7 @@ CLParser::verify_options()
     usage("The latency threshold can not be 0 for binary search mode.");
   }
 
-  if (((params_->concurrency_range[SEARCH_RANGE::kEND] <
-        params_->concurrency_range[SEARCH_RANGE::kSTART]) ||
+  if (((params_->concurrency_range.end < params_->concurrency_range.start) ||
        (params_->request_rate_range[SEARCH_RANGE::kEND] <
         params_->request_rate_range[SEARCH_RANGE::kSTART])) &&
       (params_->search_mode == SearchMode::BINARY)) {
