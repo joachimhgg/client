@@ -23,22 +23,37 @@
 // OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
 #pragma once
 
-#include <cstdint>
-
-// namespace pa = triton::perfanalyzer;
+#include <exception>
+#include <string>
 
 namespace triton { namespace perfanalyzer {
 
-constexpr static const uint32_t SUCCESS = 0;
+// Perf Exception error class
+//
+class PerfAnalyzerException : public std::exception {
+ public:
+  PerfAnalyzerException(uint32_t error) : error_(error) {}
 
-constexpr static const uint32_t STABILITY_ERROR = 2;
-constexpr static const uint32_t OPTION_ERROR = 3;
+  PerfAnalyzerException(const std::string& message, uint32_t error)
+      : message_(message), error_(error)
+  {
+  }
 
-constexpr static const uint32_t GENERIC_ERROR = 99;
+  virtual const char* what() const throw()
+  {
+    std::string msg =
+        "Perf Error " + std::to_string(error_) + " thrown:\n" + message_;
+    return msg.c_str();
+  }
 
-/// Different measurement modes possible.
-enum MeasurementMode { TIME_WINDOWS = 0, COUNT_WINDOWS = 1 };
+  inline int GetError() const { return error_; }
+
+ private:
+  const std::string message_{""};
+  uint32_t error_;
+};
 
 }}  // namespace triton::perfanalyzer

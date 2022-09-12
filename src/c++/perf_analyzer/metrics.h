@@ -26,19 +26,19 @@
 #pragma once
 
 #include <cstdint>
-
-// namespace pa = triton::perfanalyzer;
+#include <map>
+#include <string>
 
 namespace triton { namespace perfanalyzer {
 
-constexpr static const uint32_t SUCCESS = 0;
-
-constexpr static const uint32_t STABILITY_ERROR = 2;
-constexpr static const uint32_t OPTION_ERROR = 3;
-
-constexpr static const uint32_t GENERIC_ERROR = 99;
-
-/// Different measurement modes possible.
-enum MeasurementMode { TIME_WINDOWS = 0, COUNT_WINDOWS = 1 };
+/// Struct that holds server-side metrics for the inference server.
+/// The keys for each map are GPU UUIDs and the values are described in the
+/// variable names.
+struct Metrics {
+  std::map<std::string, double> gpu_utilization_per_gpu{};
+  std::map<std::string, double> gpu_power_usage_per_gpu{};
+  std::map<std::string, uint64_t> gpu_memory_used_bytes_per_gpu{};
+  std::map<std::string, uint64_t> gpu_memory_total_bytes_per_gpu{};
+};
 
 }}  // namespace triton::perfanalyzer
